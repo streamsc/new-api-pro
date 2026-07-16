@@ -16,7 +16,7 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | `audio-stt-streaming` | `d46fcab6`, `fc63b941` | 支持 `/v1/audio/transcriptions` 和 `/v1/audio/translations` 的 SSE 流式响应，并覆盖真实 multipart `stream=true` 请求 | [QuantumNous/new-api#5394](https://github.com/QuantumNous/new-api/pull/5394) | `go test ./dto ./relay/helper ./relay/channel/openai` | active |
 | 2 | `artifactory-image-manifest` | `80ef4a6e` | 发布 GHCR amd64/arm64 与多架构镜像；关闭内嵌 SBOM/provenance，强制 Docker schema 2 并校验 manifest | 未提交 | GitHub Actions Docker build、raw manifest assertions、Cosign | active |
-| 3 | `release-quality-gate` | `dcc944fd`, `9cf6562f`, `cab4dd81`, `c5d7f0f7` | 发布前运行完整 Go 测试，隔离 default/classic 前端依赖，为分支预检生成无 tag 版本号，使用完整 Go module 路径注入版本，三个平台构建完成后统一创建 GitHub prerelease | fork infrastructure | `go test ./...`、default/classic build、Linux/macOS/Windows build、`new-api -version` | permanent |
+| 3 | `release-quality-gate` | `dcc944fd`, `9cf6562f`, `cab4dd81`, `c5d7f0f7`, `14809b42` | 发布前运行完整 Go 测试，隔离 default/classic 前端依赖，为分支预检生成无 tag 版本号，使用完整 Go module 路径注入并验证版本，三个平台构建完成后统一创建 GitHub prerelease | fork infrastructure | `go test ./...`、default/classic build、Linux/macOS/Windows build、`new-api -version` | permanent |
 
 ## Creating the next downstream release
 
@@ -25,7 +25,7 @@ git fetch upstream --prune --tags
 git switch -c release/<new-upstream-version>-pro <new-upstream-tag>
 git cherry-pick -x d46fcab6 fc63b941
 git cherry-pick -x 80ef4a6e
-git cherry-pick -x dcc944fd 9cf6562f cab4dd81 c5d7f0f7
+git cherry-pick -x dcc944fd 9cf6562f cab4dd81 c5d7f0f7 14809b42
 ```
 
 逐项解决冲突并执行补丁对应的测试。若上游 Release 已包含某项修复，先验证等价行为，再将该项标记为 `upstreamed` 并从新分支的 cherry-pick 列表移除。
