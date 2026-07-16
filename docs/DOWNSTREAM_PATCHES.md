@@ -1,0 +1,45 @@
+# Downstream Patch Queue
+
+本仓库以 `QuantumNous/new-api` 的正式 Release tag 为生产基线，并以线性补丁队列维护暂未进入上游的修复和增强。
+
+## Branch model
+
+- `main`：仅快进跟踪 `upstream/main`，用于观察上游变化和创建上游 PR，不承载下游定制。
+- `release/<upstream-version>-pro`：从官方 Release tag 创建，按本文件顺序应用 active 补丁。
+- `pr/<patch-id>`：需要贡献上游时，从最新 `upstream/main` 创建并重新应用对应补丁。
+
+发布过的 tag 不移动，旧 release 分支不改写。相同上游版本的后续修复使用递增的 `.2`、`.3`；上游发布新版本时创建新的 release 分支，不把旧 release 分支 merge 到新分支。
+
+## Active patches for `v1.0.0-rc.21-pro`
+
+| Order | Patch ID | Commits | Purpose | Upstream | Validation | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | `audio-stt-streaming` | `d46fcab6`, `fc63b941` | 支持 `/v1/audio/transcriptions` 和 `/v1/audio/translations` 的 SSE 流式响应，并覆盖真实 multipart `stream=true` 请求 | [QuantumNous/new-api#5394](https://github.com/QuantumNous/new-api/pull/5394) | `go test ./dto ./relay/helper ./relay/channel/openai` | active |
+| 2 | `artifactory-image-manifest` | `80ef4a6e` | 发布 GHCR amd64/arm64 与多架构镜像；关闭内嵌 SBOM/provenance，强制 Docker schema 2 并校验 manifest | 未提交 | GitHub Actions Docker build、raw manifest assertions、Cosign | active |
+| 3 | `release-quality-gate` | `dcc944fd` | 发布前运行完整 Go 测试，三个平台构建完成后统一创建 GitHub prerelease | fork infrastructure | `go test ./...`、Linux/macOS/Windows build | permanent |
+
+## Creating the next downstream release
+
+```bash
+git fetch upstream --prune --tags
+git switch -c release/<new-upstream-version>-pro <new-upstream-tag>
+git cherry-pick -x d46fcab6 fc63b941
+git cherry-pick -x 80ef4a6e
+git cherry-pick -x dcc944fd
+```
+
+逐项解决冲突并执行补丁对应的测试。若上游 Release 已包含某项修复，先验证等价行为，再将该项标记为 `upstreamed` 并从新分支的 cherry-pick 列表移除。
+
+## Adding a downstream enhancement
+
+1. 从当前 release 分支创建独立 feature 分支。
+2. 保持提交聚焦、线性且可单独 cherry-pick；功能、测试和发布基础设施分别提交。
+3. 在本表中登记补丁 ID、提交范围、依赖、上游链接与测试命令。
+4. 如果准备贡献上游，从 `upstream/main` 创建 `pr/<patch-id>`，重新应用补丁并单独验证。
+5. 上游合并后，只有当新的官方 Release tag 已包含该修复时，才从下一个下游版本移除补丁。
+
+建议在本地启用冲突复用：
+
+```bash
+git config rerere.enabled true
+```
