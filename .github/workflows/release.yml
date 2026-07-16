@@ -63,6 +63,7 @@ jobs:
           CI: ""
         run: |
           cd web
+          rm -rf node_modules
           bun install --filter ./classic --frozen-lockfile
           cd classic
           VITE_REACT_APP_VERSION=$VERSION bun run build
@@ -122,6 +123,7 @@ jobs:
           CI: ""
         run: |
           cd web
+          rm -rf node_modules
           bun install --filter ./classic --frozen-lockfile
           cd classic
           VITE_REACT_APP_VERSION=$VERSION bun run build
@@ -178,6 +180,7 @@ jobs:
           CI: ""
         run: |
           cd web
+          rm -rf node_modules
           bun install --filter ./classic --frozen-lockfile
           cd classic
           VITE_REACT_APP_VERSION=$VERSION bun run build
