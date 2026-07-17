@@ -15,7 +15,7 @@
 | Order | Patch ID | Commits | Purpose | Upstream | Validation | Status |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | `audio-stt-streaming` | `d46fcab6`, `fc63b941` | 支持 `/v1/audio/transcriptions` 和 `/v1/audio/translations` 的 SSE 流式响应，并覆盖真实 multipart `stream=true` 请求 | [QuantumNous/new-api#5394](https://github.com/QuantumNous/new-api/pull/5394) | `go test ./dto ./relay/helper ./relay/channel/openai` | active |
-| 2 | `artifactory-image-manifest` | `80ef4a6e`, `fd9a41ce` | 通过最终 `scratch` release 阶段重生成根文件系统 layer；单次构建 amd64/arm64 OCI Index，保留 minimal provenance、关闭 SBOM，并验证 attestation、运行配置和双架构 HTTP 冒烟测试 | 未提交 | GitHub Actions Docker build、raw OCI assertions、双架构 `/api/status`、Cosign；发布前在目标 Artifactory 执行 `skopeo copy --all` | active |
+| 2 | `artifactory-image-manifest` | `80ef4a6e`, `fd9a41ce`, `9ebf0de7` | 通过最终 `scratch` release 阶段重生成根文件系统 layer；单次构建 amd64/arm64 OCI Index，保留 minimal provenance、关闭 SBOM，并验证 attestation、运行配置和双架构 HTTP 冒烟测试 | 未提交 | GitHub Actions Docker build、raw OCI assertions、双架构 `/api/status`、Cosign；发布前在目标 Artifactory 执行 `skopeo copy --all` | active |
 | 3 | `release-quality-gate` | `dcc944fd`, `9cf6562f`, `cab4dd81`, `c5d7f0f7`, `14809b42` | 发布前运行完整 Go 测试，隔离 default/classic 前端依赖，为分支预检生成无 tag 版本号，使用完整 Go module 路径注入并验证版本，三个平台构建完成后统一创建 GitHub prerelease | fork infrastructure | `go test ./...`、default/classic build、Linux/macOS/Windows build、`new-api -version` | permanent |
 
 ## Creating the next downstream release
@@ -24,7 +24,7 @@
 git fetch upstream --prune --tags
 git switch -c release/<new-upstream-version>-pro <new-upstream-tag>
 git cherry-pick -x d46fcab6 fc63b941
-git cherry-pick -x 80ef4a6e fd9a41ce
+git cherry-pick -x 80ef4a6e fd9a41ce 9ebf0de7
 git cherry-pick -x dcc944fd 9cf6562f cab4dd81 c5d7f0f7 14809b42
 ```
 
@@ -48,4 +48,5 @@ git config rerere.enabled true
 
 - `v1.0.0-rc.21-pro.1`：首个 GHCR/GitHub Release；镜像有效，但平台二进制的版本 metadata 仍显示 `v0.0.0`，已由 `.2` 替代。
 - `v1.0.0-rc.21-pro.2`：修正平台二进制 linker 路径并作为当前推荐版本。
-- `v1.0.0-rc.21-pro.3`（计划）：采用已通过 Artifactory 7.71.21 A/B 验证的根文件系统重打包方案，并恢复 OCI minimal provenance；不得覆盖 `.2`。
+- `v1.0.0-rc.21-pro.3`：平台二进制与 OCI 镜像构建成功，但 GHCR 门禁错误地拒绝 BuildKit 标准 OCI attestation config，导致后续双架构冒烟和 Cosign 签名未执行；保留 tag 并由 `.4` 替代。
+- `v1.0.0-rc.21-pro.4`（计划）：修正 attestation config 门禁并重新执行完整 GHCR 验收；不得移动或覆盖 `.3`。
