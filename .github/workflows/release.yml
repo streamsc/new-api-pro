@@ -242,7 +242,8 @@ jobs:
 
             Changes:
             - Backports streaming audio transcription and translation support from QuantumNous/new-api#5394.
-            - Publishes Artifactory-compatible container manifests through GHCR without embedded SBOM/provenance attestations.
+            - Repackages the final container root filesystem for Artifactory 7.71.21 compatibility.
+            - Publishes a multi-arch OCI Image Index through GHCR with minimal provenance and without SPDX SBOM attestations.
 
             Container image: `ghcr.io/streamsc/new-api-pro:${{ github.ref_name }}`
           files: release-assets/*
