@@ -49,4 +49,4 @@ git config rerere.enabled true
 - `v1.0.0-rc.21-pro.1`：首个 GHCR/GitHub Release；镜像有效，但平台二进制的版本 metadata 仍显示 `v0.0.0`，已由 `.2` 替代。
 - `v1.0.0-rc.21-pro.2`：修正平台二进制 linker 路径并作为当前推荐版本。
 - `v1.0.0-rc.21-pro.3`：平台二进制与 OCI 镜像构建成功，但 GHCR 门禁错误地拒绝 BuildKit 标准 OCI attestation config，导致后续双架构冒烟和 Cosign 签名未执行；保留 tag 并由 `.4` 替代。
-- `v1.0.0-rc.21-pro.4`（计划）：修正 attestation config 门禁并重新执行完整 GHCR 验收；不得移动或覆盖 `.3`。
+- `v1.0.0-rc.21-pro.4`：修正 attestation config 门禁；OCI Index、minimal SLSA provenance、双架构运行配置、双架构 `/api/status`、Cosign 签名及平台二进制发布全部通过，作为当前推荐版本。
