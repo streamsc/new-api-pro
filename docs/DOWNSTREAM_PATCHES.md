@@ -17,6 +17,7 @@
 | 1 | `audio-stt-streaming` | `d46fcab6`, `fc63b941` | 支持 `/v1/audio/transcriptions` 和 `/v1/audio/translations` 的 SSE 流式响应，并覆盖真实 multipart `stream=true` 请求 | [QuantumNous/new-api#5394](https://github.com/QuantumNous/new-api/pull/5394) | `go test ./dto ./relay/helper ./relay/channel/openai` | active |
 | 2 | `artifactory-image-manifest` | `80ef4a6e`, `fd9a41ce`, `9ebf0de7` | 通过最终 `scratch` release 阶段重生成根文件系统 layer；单次构建 amd64/arm64 OCI Index，保留 minimal provenance、关闭 SBOM，并验证 attestation、运行配置和双架构 HTTP 冒烟测试 | 未提交 | GitHub Actions Docker build、raw OCI assertions、双架构 `/api/status`、Cosign；发布前在目标 Artifactory 执行 `skopeo copy --all` | active |
 | 3 | `release-quality-gate` | `dcc944fd`, `9cf6562f`, `cab4dd81`, `c5d7f0f7`, `14809b42` | 发布前运行完整 Go 测试，隔离 default/classic 前端依赖，为分支预检生成无 tag 版本号，使用完整 Go module 路径注入并验证版本，三个平台构建完成后统一创建 GitHub prerelease | fork infrastructure | `go test ./...`、default/classic build、Linux/macOS/Windows build、`new-api -version` | permanent |
+| 4 | `redis-sentinel` | `5f89fd94`, `24a72b92`, `4a7b74fb` | 在不改变现有 Redis 公共接口和调用方的前提下，通过 go-redis failover client 支持 Redis Sentinel 主节点发现与自动故障转移 | 未提交 | `go test ./common`、`go test ./...` | active |
 
 ## Creating the next downstream release
 
@@ -26,6 +27,7 @@ git switch -c release/<new-upstream-version>-pro <new-upstream-tag>
 git cherry-pick -x d46fcab6 fc63b941
 git cherry-pick -x 80ef4a6e fd9a41ce 9ebf0de7
 git cherry-pick -x dcc944fd 9cf6562f cab4dd81 c5d7f0f7 14809b42
+git cherry-pick -x 5f89fd94 24a72b92 4a7b74fb
 ```
 
 逐项解决冲突并执行补丁对应的测试。若上游 Release 已包含某项修复，先验证等价行为，再将该项标记为 `upstreamed` 并从新分支的 cherry-pick 列表移除。
