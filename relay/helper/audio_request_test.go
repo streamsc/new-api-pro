@@ -29,5 +29,5 @@ func TestGetAndValidAudioRequestMultipartStream(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, request.Stream)
 	require.True(t, bool(*request.Stream))
-	require.True(t, request.IsStream(c))
+	require.True(t, request.IsStream(c.Request))
 }
