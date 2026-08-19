@@ -65,5 +65,5 @@
 | Frontend test, typecheck, lint, format, and build | Vitest 179/179, typecheck and build passed. Lint and five-file format checks are unchanged upstream rc.25 baseline failures; this branch has no `web/` diff. |
 | Preflight binary version | Passed: `preflight-v1.0.0-rc.25-pro` |
 | Local Docker release image | Blocked by local container-network dependency downloads after three bounded attempts; no source/build error was reported. The GHCR tag workflow remains the mandatory container gate. |
-| GitHub branch preflight | Pending |
+| GitHub branch preflight | Passed: [run 32255462261](https://github.com/streamsc/new-api-pro/actions/runs/32255462261), including Linux, macOS, and Windows artifacts |
 | GitHub Release and GHCR publication | Pending tag publication |
