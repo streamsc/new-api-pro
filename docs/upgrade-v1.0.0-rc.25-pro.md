@@ -40,8 +40,10 @@
 
 ## Deployment and rollback
 
+`v1.0.0-rc.25-pro.1` 的容器工作流在镜像推送后因 attestation 配置类型校验错误而停止，没有完成运行时校验、双架构 smoke 和 Cosign 签名。该标签保持不可变并由 `.2` 取代，不应作为部署目标。
+
 1. 停止 `v1.0.0-rc.24-pro.1` 实例，备份数据库并记录当前镜像标签或 digest。
-2. 部署 `ghcr.io/streamsc/new-api-pro:v1.0.0-rc.25-pro.1`，确认启动日志没有数据库、Redis 或渠道设置错误。
+2. 部署 `ghcr.io/streamsc/new-api-pro:v1.0.0-rc.25-pro.2`，确认启动日志没有数据库、Redis 或渠道设置错误。
 3. 验证 `/api/status`、登录、普通 Chat/Responses、音频 SSE、渠道测试、充值/兑换和 Sentinel 连接。
 4. 抽查使用日志中的 cached token、reasoning effort、条件倍率和最终扣费。
 
@@ -66,4 +68,6 @@
 | Preflight binary version | Passed: `preflight-v1.0.0-rc.25-pro` |
 | Local Docker release image | Blocked by local container-network dependency downloads after three bounded attempts; no source/build error was reported. The GHCR tag workflow remains the mandatory container gate. |
 | GitHub branch preflight | Passed: [run 32255462261](https://github.com/streamsc/new-api-pro/actions/runs/32255462261), including Linux, macOS, and Windows artifacts |
-| GitHub Release and GHCR publication | Pending tag publication |
+| GitHub Release `.1` | Passed: [run 32256570739](https://github.com/streamsc/new-api-pro/actions/runs/32256570739) |
+| GHCR `.1` | Superseded: image push completed, but an incorrect attestation config assertion skipped runtime validation, dual-architecture smoke, and Cosign signing |
+| Corrected `.2` publication | GitHub Release and GHCR workflows are mandatory deployment gates |

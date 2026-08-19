@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag name to build (e.g., v1.0.0-rc.25-pro.1)'
+        description: 'Tag name to build (e.g., v1.0.0-rc.25-pro.2)'
         required: true
         type: string
 
@@ -169,7 +169,7 @@ jobs:
           while read -r DIGEST; do
             ATTESTATION=$(docker buildx imagetools inspect --raw "${IMAGE_NAME}@${DIGEST}")
             echo "$ATTESTATION" | jq -e '.mediaType == "application/vnd.oci.image.manifest.v1+json"'
-            echo "$ATTESTATION" | jq -e '.config.mediaType == "application/vnd.oci.image.config.v1+json"'
+            echo "$ATTESTATION" | jq -e '.config.mediaType == "application/vnd.oci.empty.v1+json"'
             echo "$ATTESTATION" | jq -e '.layers | length == 1'
             echo "$ATTESTATION" | jq -e '
               [.layers[]
