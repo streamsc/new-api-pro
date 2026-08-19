@@ -207,16 +207,16 @@ jobs:
         with:
           prerelease: true
           body: |
-            Downstream release based on upstream `v1.0.0-rc.24`.
+            Downstream release based on upstream `v1.0.0-rc.25`.
 
             Changes:
-            - Includes the upstream RelayKit split, New API channel, token Auto Groups, per-channel HTTP transport controls, and billing fixes.
+            - Includes upstream channel-test safety controls, gateway field passthrough, user/group-aware parameter overrides, provider compatibility fixes, and atomic quota/recharge settlement.
             - Retains streaming audio transcription and translation support from QuantumNous/new-api#5394.
             - Retains Redis Sentinel discovery and automatic failover support.
             - Repackages the final container root filesystem for Artifactory 7.71.21 compatibility.
             - Publishes a multi-arch OCI Image Index through GHCR with minimal provenance and without SPDX SBOM attestations.
 
-            Review migration requirements in `docs/upgrade-v1.0.0-rc.24-pro.md` before deployment.
+            Review migration requirements in `docs/upgrade-v1.0.0-rc.25-pro.md` before deployment.
 
             Container image: `ghcr.io/streamsc/new-api-pro:${{ github.ref_name }}`
           files: release-assets/*
