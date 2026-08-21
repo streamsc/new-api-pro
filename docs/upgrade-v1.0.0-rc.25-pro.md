@@ -74,9 +74,9 @@
 | RelayKit independent vet, build, and tests | Passed |
 | Sentinel, audio, and channel concurrency targeted tests | Passed, including memory/Redis concurrency and Go race checks |
 | Frontend test, typecheck, lint, format, and build | Vitest 184/184, typecheck and build passed. All changed files pass lint and format; repository-wide lint and five unrelated format failures remain unchanged rc.25 baseline issues. |
-| Preflight binary version | Pending `.3` branch preflight |
+| Preflight binary version | Passed: `preflight-676b0cd6d747` |
 | Local Docker release image | Blocked again by local container-network dependency downloads during `bun install`/`go mod download`; no source/build error was reported. The GHCR tag workflow remains the mandatory container gate. |
-| GitHub branch preflight | Pending `.3` branch preflight |
+| GitHub branch preflight | Passed: [run 32505157704](https://github.com/streamsc/new-api-pro/actions/runs/32505157704), including Linux amd64/arm64, macOS, and Windows artifacts |
 | GitHub Release `.1` | Passed: [run 32256570739](https://github.com/streamsc/new-api-pro/actions/runs/32256570739) |
 | GHCR `.1` | Superseded: image push completed, but an incorrect attestation config assertion skipped runtime validation, dual-architecture smoke, and Cosign signing |
 | `.3` GitHub Release and GHCR publication | Pending annotated tag publication |
