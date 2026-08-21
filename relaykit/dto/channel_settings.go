@@ -12,6 +12,7 @@ import (
 )
 
 type ChannelSettings struct {
+	MaxConcurrency            int    `json:"max_concurrency,omitempty"`
 	TaskPluginKey             string `json:"task_plugin_key,omitempty"`
 	ForceFormat               bool   `json:"force_format,omitempty"`
 	ThinkingToContent         bool   `json:"thinking_to_content,omitempty"`

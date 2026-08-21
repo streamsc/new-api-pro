@@ -71,6 +71,7 @@ function ChannelCardComponent({
   const balanceCell = renderCell('balance')
   const responseCell = renderCell('response_time')
   const testCell = renderCell('test_time')
+  const concurrencyCell = renderCell('in_flight')
 
   const labelClass = 'text-muted-foreground text-[11px] font-medium select-none'
 
@@ -144,6 +145,10 @@ function ChannelCardComponent({
                 <dd className='min-w-0 text-sm [&_[data-slot=status-badge]]:!ml-0'>
                   {testCell ?? <span className='text-muted-foreground'>-</span>}
                 </dd>
+              </div>
+              <div className='row-span-2 grid min-w-0 grid-rows-subgrid'>
+                <dt className={labelClass}>{t('In-flight / Limit')}</dt>
+                <dd className='min-w-0 text-sm tabular-nums'>{concurrencyCell}</dd>
               </div>
             </dl>
           </div>

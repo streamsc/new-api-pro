@@ -297,6 +297,7 @@ const SENSITIVE_FORM_FIELDS = [
   'force_format',
   'thinking_to_content',
   'proxy',
+  'max_concurrency',
   'http_protocol',
   'http2_connection_shards',
   'pass_through_body_enabled',
@@ -2617,6 +2618,21 @@ export function ChannelMutateDrawer({
             />
           </fieldset>
         )}
+        <FormField
+          control={form.control}
+          name='max_concurrency'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('Relay concurrency limit')}</FormLabel>
+              <FormControl>
+                <Input type='number' min={0} step={1} {...field}
+                  onChange={(event) => field.onChange(event.target.value === '' ? 0 : Number(event.target.value))} />
+              </FormControl>
+              <FormDescription>{t('0 means unlimited standard Relay requests')}</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
       </ChannelBasicSection>
     </div>
   )
