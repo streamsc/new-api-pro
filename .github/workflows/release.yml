@@ -210,6 +210,7 @@ jobs:
             Downstream release based on upstream `v1.0.0-rc.25`.
 
             Changes:
+            - Adds per-channel concurrency limits and live in-flight counts for standard Relay requests, with direct HTTP 429 saturation responses and explicit HTTP 503 behavior when the configured Redis concurrency store is unavailable.
             - Includes upstream channel-test safety controls, gateway field passthrough, user/group-aware parameter overrides, provider compatibility fixes, and atomic quota/recharge settlement.
             - Retains streaming audio transcription and translation support from QuantumNous/new-api#5394.
             - Retains Redis Sentinel discovery and automatic failover support.
