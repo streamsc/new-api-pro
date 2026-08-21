@@ -46,6 +46,7 @@ export const channelSchema = z.object({
   created_time: z.number(),
   test_time: z.number(),
   response_time: z.number(), // in milliseconds
+  in_flight: z.number().int().nonnegative().default(0),
   base_url: z.string().nullish(),
   other: z.string().default(''),
   balance: z.number().default(0), // in USD
@@ -83,6 +84,7 @@ export interface ChannelSettings {
   force_format?: boolean
   thinking_to_content?: boolean
   proxy?: string
+  max_concurrency?: number
   pass_through_body_enabled?: boolean
   system_prompt?: string
   system_prompt_override?: boolean

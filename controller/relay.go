@@ -75,9 +75,16 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	//originalModel := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
 
 	var (
-		newAPIError *types.NewAPIError
-		ws          *websocket.Conn
+		newAPIError       *types.NewAPIError
+		ws                *websocket.Conn
+		activeConcurrency *service.ChannelConcurrencyLease
+		suppressErrorBody bool
 	)
+	defer func() {
+		if activeConcurrency != nil {
+			activeConcurrency.Release()
+		}
+	}()
 
 	if relayFormat == types.RelayFormatOpenAIRealtime {
 		var err error
@@ -93,6 +100,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if newAPIError != nil {
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
+			if suppressErrorBody {
+				return
+			}
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
 				helper.WssError(c, ws, newAPIError.ToOpenAIError())
@@ -190,6 +200,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
+	requestContext := c.Request.Context()
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
 		relayInfo.RetryIndex = retryParam.GetRetry()
@@ -199,7 +210,6 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			newAPIError = channelErr
 			break
 		}
-		addUsedChannel(c, channel.Id)
 		if billingErr := service.PrepareTieredBillingForSelectedGroup(c, relayInfo); billingErr != nil {
 			newAPIError = billingErr
 			break
@@ -216,6 +226,26 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
+		if relayFormat != types.RelayFormatOpenAIRealtime {
+			channelSetting, _ := common.GetContextKeyType[dto.ChannelSettings](c, constant.ContextKeyChannelSetting)
+			member := fmt.Sprintf("%s:%d", requestId, retryParam.GetRetry())
+			activeConcurrency, _, err = service.AcquireChannelConcurrency(
+				requestContext,
+				channel.Id,
+				channelSetting.MaxConcurrency,
+				member,
+			)
+			if err != nil {
+				if !errors.Is(err, service.ErrChannelConcurrencyLimit) {
+					logger.LogError(c, fmt.Sprintf("channel concurrency acquisition failed: channel_id=%d error=%v", channel.Id, err))
+				}
+				newAPIError = channelConcurrencyError(err)
+				break
+			}
+			c.Request = c.Request.WithContext(activeConcurrency.Context())
+		}
+
+		addUsedChannel(c, channel.Id)
 
 		switch relayFormat {
 		case types.RelayFormatOpenAIRealtime:
@@ -226,6 +256,18 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			newAPIError = geminiRelayHandler(c, relayInfo)
 		default:
 			newAPIError = relayHandler(c, relayInfo)
+		}
+
+		if activeConcurrency != nil {
+			leaseLost := activeConcurrency.Lost()
+			activeConcurrency.Release()
+			activeConcurrency = nil
+			c.Request = c.Request.WithContext(requestContext)
+			if leaseLost {
+				newAPIError = channelConcurrencyError(service.ErrChannelConcurrencyStore)
+				suppressErrorBody = c.Writer.Written()
+				break
+			}
 		}
 
 		if newAPIError == nil {
@@ -253,6 +295,24 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
 		})
 	}
+}
+
+func channelConcurrencyError(err error) *types.NewAPIError {
+	statusCode := http.StatusServiceUnavailable
+	errorCode := types.ErrorCodeConcurrencyStore
+	message := "channel concurrency service unavailable"
+	if errors.Is(err, service.ErrChannelConcurrencyLimit) {
+		statusCode = http.StatusTooManyRequests
+		errorCode = types.ErrorCodeConcurrencyLimit
+		message = "channel concurrency limit exceeded"
+	}
+	return types.NewErrorWithStatusCode(
+		errors.New(message),
+		errorCode,
+		statusCode,
+		types.ErrOptionWithSkipRetry(),
+		types.ErrOptionWithNoRecordErrorLog(),
+	)
 }
 
 var upgrader = websocket.Upgrader{

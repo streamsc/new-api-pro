@@ -338,6 +338,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.remark?.trim() ||
     values.priority ||
     values.weight ||
+    values.max_concurrency ||
     values.proxy?.trim() ||
     values.system_prompt?.trim() ||
     values.force_format ||
@@ -739,6 +740,7 @@ export function ChannelMutateDrawer({
   const currentAdvancedCustom = form.watch('advanced_custom')
   const currentPriority = form.watch('priority')
   const currentWeight = form.watch('weight')
+  const currentMaxConcurrency = form.watch('max_concurrency')
   const currentTestModel = form.watch('test_model')
   const currentAutoBan = form.watch('auto_ban')
   const currentTag = form.watch('tag')
@@ -1006,6 +1008,7 @@ export function ChannelMutateDrawer({
   const routingStrategyConfigured = Boolean(
     currentPriority ||
     currentWeight ||
+    currentMaxConcurrency ||
     currentTestModel?.trim() ||
     (currentAutoBan ?? 1) !== 1
   )
@@ -3687,6 +3690,36 @@ export function ChannelMutateDrawer({
                                     </FormControl>
                                     <FormDescription>
                                       {t(FIELD_DESCRIPTIONS.WEIGHT)}
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
+                                name='max_concurrency'
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>
+                                      {t('Relay concurrency limit')}
+                                    </FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        type='number'
+                                        min={0}
+                                        step={1}
+                                        placeholder='0'
+                                        {...field}
+                                        onChange={(event) =>
+                                          field.onChange(
+                                            Number(event.target.value)
+                                          )
+                                        }
+                                      />
+                                    </FormControl>
+                                    <FormDescription>
+                                      {t(FIELD_DESCRIPTIONS.MAX_CONCURRENCY)}
                                     </FormDescription>
                                     <FormMessage />
                                   </FormItem>

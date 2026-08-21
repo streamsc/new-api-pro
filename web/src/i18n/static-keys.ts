@@ -551,6 +551,11 @@ export const STATIC_I18N_KEYS = [
   'The model that was requested',
   'The upstream channel that served the requests',
 
+  // Channel concurrency
+  'In-flight / Limit',
+  'Relay concurrency limit',
+  '0 means unlimited standard Relay requests',
+
   // Misc
   'Cancel',
   'Status',

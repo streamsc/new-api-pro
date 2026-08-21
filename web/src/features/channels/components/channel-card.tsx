@@ -63,6 +63,7 @@ function ChannelCardComponent({
     balance: t('Used / Remaining'),
     response_time: t('Response'),
     test_time: t('Last Tested'),
+    in_flight: t('In-flight / Limit'),
   }
 
   const groups = parseGroupsList(row.original.group ?? '')
@@ -77,6 +78,7 @@ function ChannelCardComponent({
   const balanceCell = renderCell('balance')
   const responseCell = renderCell('response_time')
   const testCell = renderCell('test_time')
+  const concurrencyCell = renderCell('in_flight')
 
   const labelClass = 'text-muted-foreground text-[11px] font-medium select-none'
 
@@ -127,6 +129,16 @@ function ChannelCardComponent({
               </div>
               <div className='min-w-0 overflow-hidden text-sm'>
                 {balanceCell ?? (
+                  <span className='text-muted-foreground'>-</span>
+                )}
+              </div>
+            </div>
+            <div className='min-w-0'>
+              <div className={cn('mb-1', labelClass)}>
+                {fieldLabels.in_flight}
+              </div>
+              <div className='min-w-0 overflow-hidden text-sm'>
+                {concurrencyCell ?? (
                   <span className='text-muted-foreground'>-</span>
                 )}
               </div>

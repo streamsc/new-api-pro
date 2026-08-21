@@ -370,6 +370,7 @@ export const FIELD_DESCRIPTIONS = {
     'Map request model names to actual provider model names (JSON format)',
   PRIORITY: 'Higher priority channels are selected first',
   WEIGHT: 'Used for load balancing. Higher weight = more requests',
+  MAX_CONCURRENCY: '0 means unlimited standard Relay requests',
   TEST_MODEL: 'Model to use when testing channel connectivity',
   AUTO_BAN: 'Automatically disable channel on repeated failures',
   STATUS_CODE_MAPPING: 'Map response status codes (JSON format)',

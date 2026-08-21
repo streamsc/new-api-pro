@@ -24,6 +24,11 @@ func TestChannelValidateSettingsRejectsInvalidHTTPTransport(t *testing.T) {
 			setting: dto.ChannelSettings{HTTPProtocol: "http1", HTTP2ConnectionShards: 2},
 			wantErr: "http2_connection_shards",
 		},
+		{
+			name:    "negative concurrency rejected",
+			setting: dto.ChannelSettings{MaxConcurrency: -1},
+			wantErr: "max_concurrency",
+		},
 	}
 
 	for _, tt := range tests {

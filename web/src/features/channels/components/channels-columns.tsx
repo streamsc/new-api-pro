@@ -64,6 +64,7 @@ import {
   getChannelTypeIcon,
   getChannelTypeLabel,
   getResponseTimeConfig,
+  getChannelConcurrency,
   isMultiKeyChannel,
   parseModelsList,
   parseGroupsList,
@@ -87,6 +88,15 @@ import {
   type CodexUsageDialogData,
 } from './dialogs/codex-usage-dialog'
 import { NumericSpinnerInput } from './numeric-spinner-input'
+
+function ChannelConcurrencyCell({ channel }: { channel: Channel }) {
+  const concurrency = getChannelConcurrency(channel)
+  return (
+    <span className='font-mono text-xs tabular-nums'>
+      {concurrency.inFlight} / {concurrency.maximum || '∞'}
+    </span>
+  )
+}
 
 function parseIonetMeta(otherInfo: string | null | undefined): null | {
   source?: string
@@ -1126,6 +1136,15 @@ export function useChannelsColumns(
         meta: { mobileHidden: true },
         cell: ({ row }) => <WeightCell channel={row.original} />,
         size: 90,
+        enableSorting: false,
+      },
+
+      {
+        accessorKey: 'in_flight',
+        header: t('In-flight / Limit'),
+        meta: { mobileHidden: true },
+        cell: ({ row }) => <ChannelConcurrencyCell channel={row.original} />,
+        size: 120,
         enableSorting: false,
       },
 
