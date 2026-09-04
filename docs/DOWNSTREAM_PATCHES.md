@@ -18,6 +18,7 @@
 | 2 | `artifactory-release-infrastructure` | `2df032b3`, `22172f15`, `760abc15`, `310329bf` | `04fcff85`, `15497889`, `c7aa0403` | 保留 RelayKit 双模块门禁、版本校验、最终 `scratch` release 层、Artifactory 7.71.21 兼容、多架构 OCI Index、minimal provenance、无 SPDX SBOM、双架构冒烟和 Cosign 签名 | Workflow YAML、`make test`、前端 build、Docker `release`、版本和 `/api/status` | permanent |
 | 3 | `audio-stt-streaming` | `510d170b`, `6f84ab0c`, `6dd57eeb` | `4bc2bd80`, `eaae8337`, `841466a9` | 在 `relaykit/dto` 接口上支持 `/v1/audio/transcriptions` 和 `/v1/audio/translations` SSE 响应，并覆盖真实 multipart `stream=true` 请求 | `go test ./relay/helper ./relay/channel/openai` 和 `cd relaykit && go test ./dto` | active |
 | 4 | `channel-relay-concurrency` | `653265fd` | downstream | 为标准 Relay 渠道增加可配置并发上限和在途计数；Redis 模式跨实例共享租约，存储不可用时明确失败 | 根模块与 RelayKit vet/build/test、并发 race、前端测试/typecheck/build、受影响文件 lint/format | active |
+| 5 | `context-hmac-header-override` | `0fc4e495` | downstream | 为 `header_override` 增加基于已认证用户或令牌 ID 的稳定 HMAC 占位符，不向上游暴露原始身份 | `go test -race ./relay/channel -run ContextHMAC`、根模块 vet/build/test、前端测试/typecheck/build、受影响文件 lint/format | active |
 
 ## Retired patches
 
@@ -34,6 +35,7 @@ git cherry-pick -x 80262dd2 9eb80a60 3fe62569
 git cherry-pick -x 2df032b3 22172f15 760abc15 310329bf
 git cherry-pick -x 510d170b 6f84ab0c 6dd57eeb
 git cherry-pick -x 653265fd
+git cherry-pick -x 0fc4e495
 ```
 
 若上游移动 DTO 或构建模块边界，应按新边界迁移补丁和测试，不保留旧目录兼容副本。若上游已包含等价行为，验证后将补丁标记为 `upstreamed`。
@@ -53,3 +55,4 @@ git cherry-pick -x 653265fd
 - `v1.0.0-rc.24-pro.1`：基于官方 rc.24 重建补丁队列并适配独立 RelayKit 模块。
 - `release/v1.0.0-rc.25-pro`：基于官方 rc.25 重建补丁队列，纳入渠道测试、参数透传和额度结算修复。
 - `v1.0.0-rc.25-pro.3`：增加标准 Relay 渠道并发控制、在途计数，以及 Redis/单实例两种运行语义。
+- `v1.0.0-rc.25-pro.4`：增加基于已认证用户或令牌身份的上游请求头 HMAC 映射。
