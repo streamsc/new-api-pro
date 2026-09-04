@@ -670,6 +670,8 @@
     "auth.resetPasswordConfirm.description": "确认重置请求以生成新密码。",
     "auth.resetPasswordConfirm.retry": "重试 ({{seconds}}s)",
     "auth.resetPasswordConfirm.success": "您的密码已成功重置",
+    "Authenticated token HMAC": "已认证令牌 HMAC",
+    "Authenticated user HMAC": "已认证用户 HMAC",
     "Authentication": "身份验证",
     "Authentication for upstream requests; channel credentials may still be used.": "用于调用上游服务的认证方式；插件仍可能使用渠道凭据。",
     "Authentication Method": "认证方式",

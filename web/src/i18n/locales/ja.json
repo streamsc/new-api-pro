@@ -670,6 +670,8 @@
     "auth.resetPasswordConfirm.description": "新しいパスワードを生成するには、リセット要求を確認してください。",
     "auth.resetPasswordConfirm.retry": "再試行 ({{seconds}}秒)",
     "auth.resetPasswordConfirm.success": "パスワードが正常にリセットされました",
+    "Authenticated token HMAC": "認証済みトークンの HMAC",
+    "Authenticated user HMAC": "認証済みユーザーの HMAC",
     "Authentication": "認証",
     "Authentication for upstream requests; channel credentials may still be used.": "上流サービスへの認証方式です。チャネルの認証情報が使われる場合もあります。",
     "Authentication Method": "認証方式",

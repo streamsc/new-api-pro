@@ -62,7 +62,12 @@ func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Hea
 	}
 }
 
-const clientHeaderPlaceholderPrefix = "{client_header:"
+const (
+	clientHeaderPlaceholderPrefix = "{client_header:"
+	contextHMACPlaceholderMarker  = "{context_hmac"
+	contextHMACUserIDPlaceholder  = "{context_hmac:user_id}"
+	contextHMACTokenIDPlaceholder = "{context_hmac:token_id}"
+)
 
 const (
 	headerPassthroughAllKey        = "*"
@@ -150,8 +155,29 @@ func shouldSkipPassthroughHeader(name string) bool {
 	return false
 }
 
-func applyHeaderOverridePlaceholders(template string, c *gin.Context, apiKey string) (string, bool, error) {
+func applyHeaderOverridePlaceholders(template string, c *gin.Context, info *common.RelayInfo) (string, bool, error) {
 	trimmed := strings.TrimSpace(template)
+	if strings.Contains(strings.ToLower(trimmed), contextHMACPlaceholderMarker) {
+		var source string
+		var id int
+		switch trimmed {
+		case contextHMACUserIDPlaceholder:
+			source = "user_id"
+			id = info.UserId
+		case contextHMACTokenIDPlaceholder:
+			source = "token_id"
+			id = info.TokenId
+		default:
+			return "", false, fmt.Errorf("context_hmac placeholder must be a supported full value: %q", template)
+		}
+
+		if info.IsChannelTest || id <= 0 {
+			return "", false, nil
+		}
+		input := fmt.Sprintf("new-api-pro:context-hmac:v1:%s:%d", source, id)
+		return fmt.Sprintf("v1:%s:%s", source, common2.GenerateHMAC(input)), true, nil
+	}
+
 	if strings.HasPrefix(trimmed, clientHeaderPlaceholderPrefix) {
 		afterPrefix := trimmed[len(clientHeaderPlaceholderPrefix):]
 		end := strings.Index(afterPrefix, "}")
@@ -175,7 +201,7 @@ func applyHeaderOverridePlaceholders(template string, c *gin.Context, apiKey str
 	}
 
 	if strings.Contains(template, "{api_key}") {
-		template = strings.ReplaceAll(template, "{api_key}", apiKey)
+		template = strings.ReplaceAll(template, "{api_key}", info.ApiKey)
 	}
 	if strings.TrimSpace(template) == "" {
 		return "", false, nil
@@ -187,6 +213,8 @@ func applyHeaderOverridePlaceholders(template string, c *gin.Context, apiKey str
 // Supported placeholders:
 //   - {api_key}: resolved to the channel API key
 //   - {client_header:<name>}: resolved to the incoming request header value
+//   - {context_hmac:user_id}: HMAC of the authenticated user ID
+//   - {context_hmac:token_id}: HMAC of the authenticated token ID
 //
 // Header passthrough rules (keys only; values are ignored):
 //   - "*": passthrough all incoming headers by name (excluding unsafe headers)
@@ -280,7 +308,7 @@ func processHeaderOverride(info *common.RelayInfo, c *gin.Context) (map[string]s
 			continue
 		}
 
-		value, include, err := applyHeaderOverridePlaceholders(str, c, info.ApiKey)
+		value, include, err := applyHeaderOverridePlaceholders(str, c, info)
 		if err != nil {
 			return nil, types.NewError(err, types.ErrorCodeChannelHeaderOverrideInvalid)
 		}

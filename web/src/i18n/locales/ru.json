@@ -670,6 +670,8 @@
     "auth.resetPasswordConfirm.description": "Подтвердите запрос на сброс, чтобы создать новый пароль.",
     "auth.resetPasswordConfirm.retry": "Повторить ({{seconds}}с)",
     "auth.resetPasswordConfirm.success": "Ваш пароль успешно сброшен",
+    "Authenticated token HMAC": "HMAC аутентифицированного токена",
+    "Authenticated user HMAC": "HMAC аутентифицированного пользователя",
     "Authentication": "Аутентификация",
     "Authentication for upstream requests; channel credentials may still be used.": "Способ аутентификации запросов к провайдеру; учётные данные канала всё ещё могут использоваться.",
     "Authentication Method": "Метод аутентификации",
