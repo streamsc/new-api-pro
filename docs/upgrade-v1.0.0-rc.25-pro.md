@@ -87,4 +87,5 @@
 | GHCR `.1` | Superseded: image push completed, but an incorrect attestation config assertion skipped runtime validation, dual-architecture smoke, and Cosign signing |
 | `.3` GitHub Release | Passed: [run 32505947646](https://github.com/streamsc/new-api-pro/actions/runs/32505947646), prerelease assets and checksums published |
 | `.3` GHCR publication | Passed: [run 32505947619](https://github.com/streamsc/new-api-pro/actions/runs/32505947619), OCI index `sha256:ecab67ddc4818c3605e7b50ae75b2e5288c6415992c70208dffe8bb13e308ae0`, amd64/arm64 smoke, attestations, and Cosign signatures verified |
-| `.4` GitHub Release and GHCR publication | Pending annotated tag publication |
+| `.4` GitHub Release | Passed: [run 33868557961](https://github.com/streamsc/new-api-pro/actions/runs/33868557961), prerelease assets and checksums published from `231442f7b02a6fc41c94770ef883dc73824435d8` |
+| `.4` GHCR publication | Passed: [run 33868557852](https://github.com/streamsc/new-api-pro/actions/runs/33868557852), OCI index `sha256:61c0a42843d1b29466b5a93217d7faff5359545241f52fe29319742a8b5d2cdc`, amd64/arm64 smoke, attestations, runtime configuration, and Cosign signatures verified |
