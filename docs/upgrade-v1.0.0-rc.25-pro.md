@@ -80,9 +80,9 @@
 | RelayKit independent vet, build, and tests | Passed for `.4` source |
 | Targeted tests | Channel HMAC tests and race checks passed; existing Sentinel, audio, and channel concurrency coverage remains enabled |
 | Frontend test, typecheck, lint, format, and build | Vitest 184/184, typecheck and build passed. All changed files pass lint and format; repository-wide lint baseline failures remain unrelated to this change. |
-| Preflight binary version | Pending `.4` branch preflight |
+| Preflight binary version | Passed: `preflight-1f778862a4cc` |
 | Local Docker release image | Blocked because the local Docker daemon is unavailable; no source/build error was reported. The GHCR tag workflow remains the mandatory container gate. |
-| GitHub branch preflight | Pending `.4` branch preflight |
+| GitHub branch preflight | Passed: [run 33867836154](https://github.com/streamsc/new-api-pro/actions/runs/33867836154), including Linux amd64/arm64, macOS, and Windows artifacts |
 | GitHub Release `.1` | Passed: [run 32256570739](https://github.com/streamsc/new-api-pro/actions/runs/32256570739) |
 | GHCR `.1` | Superseded: image push completed, but an incorrect attestation config assertion skipped runtime validation, dual-architecture smoke, and Cosign signing |
 | `.3` GitHub Release | Passed: [run 32505947646](https://github.com/streamsc/new-api-pro/actions/runs/32505947646), prerelease assets and checksums published |
