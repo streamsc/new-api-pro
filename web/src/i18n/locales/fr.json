@@ -504,6 +504,8 @@
     "auth.resetPasswordConfirm.description": "Confirmez la demande de réinitialisation pour générer un nouveau mot de passe.",
     "auth.resetPasswordConfirm.retry": "Réessayer ({{seconds}}s)",
     "auth.resetPasswordConfirm.success": "Votre mot de passe a été réinitialisé avec succès",
+    "Authenticated token HMAC": "HMAC du jeton authentifié",
+    "Authenticated user HMAC": "HMAC de l’utilisateur authentifié",
     "Authentication": "Authentification",
     "Authentication Method": "Méthode d'authentification",
     "Authenticator code": "Code d'authentification",

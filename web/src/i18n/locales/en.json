@@ -504,6 +504,8 @@
     "auth.resetPasswordConfirm.description": "Confirm the reset request to generate a new password.",
     "auth.resetPasswordConfirm.retry": "Retry ({{seconds}}s)",
     "auth.resetPasswordConfirm.success": "Your password has been reset successfully",
+    "Authenticated token HMAC": "Authenticated token HMAC",
+    "Authenticated user HMAC": "Authenticated user HMAC",
     "Authentication": "Authentication",
     "Authentication Method": "Authentication Method",
     "Authenticator code": "Authenticator code",

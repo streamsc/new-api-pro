@@ -504,6 +504,8 @@
     "auth.resetPasswordConfirm.description": "Xác nhận yêu cầu đặt lại để tạo mật khẩu mới.",
     "auth.resetPasswordConfirm.retry": "Thử lại ({{seconds}} giây)",
     "auth.resetPasswordConfirm.success": "Mật khẩu của bạn đã được đặt lại thành công",
+    "Authenticated token HMAC": "HMAC token đã xác thực",
+    "Authenticated user HMAC": "HMAC người dùng đã xác thực",
     "Authentication": "Xác thực",
     "Authentication Method": "Phương thức xác thực",
     "Authenticator code": "Mã xác thực",

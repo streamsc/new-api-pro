@@ -504,6 +504,8 @@
     "auth.resetPasswordConfirm.description": "新しいパスワードを生成するには、リセット要求を確認してください。",
     "auth.resetPasswordConfirm.retry": "再試行 ({{seconds}}秒)",
     "auth.resetPasswordConfirm.success": "パスワードが正常にリセットされました",
+    "Authenticated token HMAC": "認証済みトークンの HMAC",
+    "Authenticated user HMAC": "認証済みユーザーの HMAC",
     "Authentication": "認証",
     "Authentication Method": "認証方式",
     "Authenticator code": "認証コード",

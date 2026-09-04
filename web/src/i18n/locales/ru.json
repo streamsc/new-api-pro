@@ -504,6 +504,8 @@
     "auth.resetPasswordConfirm.description": "Подтвердите запрос на сброс, чтобы создать новый пароль.",
     "auth.resetPasswordConfirm.retry": "Повторить ({{seconds}}с)",
     "auth.resetPasswordConfirm.success": "Ваш пароль успешно сброшен",
+    "Authenticated token HMAC": "HMAC аутентифицированного токена",
+    "Authenticated user HMAC": "HMAC аутентифицированного пользователя",
     "Authentication": "Аутентификация",
     "Authentication Method": "Метод аутентификации",
     "Authenticator code": "Код аутентификатора",

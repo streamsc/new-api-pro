@@ -504,6 +504,8 @@
     "auth.resetPasswordConfirm.description": "確認重設請求以產生新密碼。",
     "auth.resetPasswordConfirm.retry": "重試 ({{seconds}}s)",
     "auth.resetPasswordConfirm.success": "您的密碼已成功重設",
+    "Authenticated token HMAC": "已認證令牌 HMAC",
+    "Authenticated user HMAC": "已認證使用者 HMAC",
     "Authentication": "身份驗證",
     "Authentication Method": "認證方式",
     "Authenticator code": "身份驗證器代碼",

@@ -4069,7 +4069,22 @@ export function ChannelMutateDrawer({
                                       <code className='bg-muted rounded px-1 py-0.5'>
                                         {'{client_header:NAME}'}
                                       </code>{' '}
-                                      — {t('Client header value')}
+                                      — {t('Client header value')},{' '}
+                                      <code className='bg-muted rounded px-1 py-0.5'>
+                                        {'{context_hmac:user_id}'}
+                                      </code>{' '}
+                                      — {t('Authenticated user HMAC')},{' '}
+                                      <code className='bg-muted rounded px-1 py-0.5'>
+                                        {'{context_hmac:token_id}'}
+                                      </code>{' '}
+                                      — {t('Authenticated token HMAC')}
+                                      <br />
+                                      {t('Example')}:{' '}
+                                      <code className='bg-muted rounded px-1 py-0.5 break-all'>
+                                        {
+                                          '{"X-Affinity-Key":"{context_hmac:token_id}"}'
+                                        }
+                                      </code>
                                     </FormDescription>
                                     <FormMessage />
                                   </FormItem>
