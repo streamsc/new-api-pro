@@ -652,7 +652,7 @@ export function aggregateChannelsByTag(
         group: '',
         used_quota: 0,
         response_time: 0,
-        in_flight: 0,
+        in_flight: null,
         priority: -1 as unknown as number | null,
         weight: -1 as unknown as number | null,
         balance: 0,
@@ -677,9 +677,6 @@ export function aggregateChannelsByTag(
 
     // Aggregate used_quota (sum)
     tagRow.used_quota += channel.used_quota
-
-    // Aggregate current standard Relay requests.
-    tagRow.in_flight += channel.in_flight
 
     // Aggregate response_time (average)
     tagRow.response_time =
@@ -725,31 +722,17 @@ export function aggregateChannelsByTag(
 }
 
 export function getChannelConcurrency(channel: Channel | TagRow): {
-  inFlight: number
+  inFlight: number | null
   maximum: number
-} {
-  if (!isTagAggregateRow(channel)) {
-    const maximum = parseChannelSettings(channel.setting).max_concurrency
-    return {
-      inFlight: channel.in_flight,
-      maximum:
-        Number.isInteger(maximum) && Number(maximum) > 0 ? Number(maximum) : 0,
-    }
+} | null {
+  if (isTagAggregateRow(channel)) {
+    return null
   }
-
-  let maximum = 0
-  let unlimited = false
-  for (const child of channel.children) {
-    const childMaximum = getChannelConcurrency(child).maximum
-    if (childMaximum === 0) {
-      unlimited = true
-    } else {
-      maximum += childMaximum
-    }
-  }
+  const maximum = parseChannelSettings(channel.setting).max_concurrency
   return {
-    inFlight: channel.in_flight,
-    maximum: unlimited ? 0 : maximum,
+    inFlight: channel.in_flight ?? null,
+    maximum:
+      Number.isInteger(maximum) && Number(maximum) > 0 ? Number(maximum) : 0,
   }
 }
 

@@ -100,7 +100,7 @@ func GetChannelOps(c *gin.Context) {
 
 type channelWithConcurrency struct {
 	*model.Channel
-	InFlight int `json:"in_flight"`
+	InFlight *int `json:"in_flight"`
 }
 
 func channelsWithConcurrency(channels []*model.Channel) ([]channelWithConcurrency, error) {
@@ -109,22 +109,24 @@ func channelsWithConcurrency(channels []*model.Channel) ([]channelWithConcurrenc
 		ids = append(ids, channel.Id)
 	}
 	counts, err := service.GetChannelConcurrencyCounts(ids)
-	if err != nil {
-		return nil, err
-	}
 	result := make([]channelWithConcurrency, 0, len(channels))
 	for _, channel := range channels {
-		result = append(result, channelWithConcurrency{Channel: channel, InFlight: counts[channel.Id]})
+		item := channelWithConcurrency{Channel: channel}
+		if count, ok := counts[channel.Id]; err == nil && ok {
+			item.InFlight = &count
+		} else if err == nil {
+			err = fmt.Errorf("missing concurrency count for channel %d", channel.Id)
+		}
+		result = append(result, item)
 	}
-	return result, nil
+	return result, err
 }
 
-func respondChannelConcurrencyUnavailable(c *gin.Context, err error) {
-	logger.LogError(c, "failed to read channel concurrency: "+err.Error())
-	c.JSON(http.StatusServiceUnavailable, gin.H{
-		"success": false,
-		"message": "渠道并发服务暂不可用",
-	})
+func channelConcurrencyScope() string {
+	if common.RedisEnabled {
+		return "redis"
+	}
+	return "process"
 }
 
 func GetAllChannels(c *gin.Context) {
@@ -200,8 +202,7 @@ func GetAllChannels(c *gin.Context) {
 	}
 	items, err := channelsWithConcurrency(channelData)
 	if err != nil {
-		respondChannelConcurrencyUnavailable(c, err)
-		return
+		logger.LogError(c, "failed to read channel concurrency: "+err.Error())
 	}
 
 	countQuery := buildChannelListQuery(groupFilter, statusFilter, -1)
@@ -219,11 +220,13 @@ func GetAllChannels(c *gin.Context) {
 		typeCounts[r.Type] = r.Count
 	}
 	common.ApiSuccess(c, gin.H{
-		"items":       items,
-		"total":       total,
-		"page":        pageInfo.GetPage(),
-		"page_size":   pageInfo.GetPageSize(),
-		"type_counts": typeCounts,
+		"in_flight_scope":     channelConcurrencyScope(),
+		"in_flight_available": err == nil,
+		"items":               items,
+		"total":               total,
+		"page":                pageInfo.GetPage(),
+		"page_size":           pageInfo.GetPageSize(),
+		"type_counts":         typeCounts,
 	})
 	return
 }
@@ -418,17 +421,18 @@ func SearchChannels(c *gin.Context) {
 	}
 	items, err := channelsWithConcurrency(pagedData)
 	if err != nil {
-		respondChannelConcurrencyUnavailable(c, err)
-		return
+		logger.LogError(c, "failed to read channel concurrency: "+err.Error())
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"items":       items,
-			"total":       total,
-			"type_counts": typeCounts,
+			"in_flight_scope":     channelConcurrencyScope(),
+			"in_flight_available": err == nil,
+			"items":               items,
+			"total":               total,
+			"type_counts":         typeCounts,
 		},
 	})
 	return
@@ -450,8 +454,7 @@ func GetChannel(c *gin.Context) {
 	}
 	items, err := channelsWithConcurrency([]*model.Channel{channel})
 	if err != nil {
-		respondChannelConcurrencyUnavailable(c, err)
-		return
+		logger.LogError(c, "failed to read channel concurrency: "+err.Error())
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

@@ -81,9 +81,16 @@ export type CodexCredentialRefreshResponse = {
  * Get paginated list of channels
  */
 export async function getChannels(
-  params: GetChannelsParams = {}
+  params: GetChannelsParams = {},
+  config: ApiRequestConfig = {}
 ): Promise<GetChannelsResponse> {
-  const res = await api.get('/api/channel', { params })
+  const res = await api.get<GetChannelsResponse>('/api/channel', {
+    ...config,
+    params,
+  })
+  if (!res.data.success || !res.data.data) {
+    throw new Error(res.data.message || 'Failed to load channels')
+  }
   return res.data
 }
 
@@ -91,9 +98,16 @@ export async function getChannels(
  * Search channels with filters
  */
 export async function searchChannels(
-  params: SearchChannelsParams
+  params: SearchChannelsParams,
+  config: ApiRequestConfig = {}
 ): Promise<SearchChannelsResponse> {
-  const res = await api.get('/api/channel/search', { params })
+  const res = await api.get<SearchChannelsResponse>('/api/channel/search', {
+    ...config,
+    params,
+  })
+  if (!res.data.success || !res.data.data) {
+    throw new Error(res.data.message || 'Failed to load channels')
+  }
   return res.data
 }
 

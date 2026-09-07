@@ -91,9 +91,10 @@ import { NumericSpinnerInput } from './numeric-spinner-input'
 
 function ChannelConcurrencyCell({ channel }: { channel: Channel }) {
   const concurrency = getChannelConcurrency(channel)
+  if (!concurrency) return <span>-</span>
   return (
     <span className='font-mono text-xs tabular-nums'>
-      {concurrency.inFlight} / {concurrency.maximum || '∞'}
+      {concurrency.inFlight ?? '-'} / {concurrency.maximum || '∞'}
     </span>
   )
 }

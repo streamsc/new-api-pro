@@ -1,4 +1,12 @@
 {
+  "Standard Relay": "标准 Relay",
+  "Updated every minute": "每分钟更新",
+  "Redis shared": "Redis 共享",
+  "Current process": "当前进程",
+  "Zero does not guarantee all requests have drained.": "零值不保证全部请求已排空。",
+  "Failed to fetch in-flight requests": "在途请求数获取失败",
+  "Failed to load channels": "渠道加载失败",
+  "Refresh channels": "刷新渠道",
   "translation": {
     "360": "360",
     "1000": "1000",

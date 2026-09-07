@@ -46,7 +46,7 @@ export const channelSchema = z.object({
   created_time: z.number(),
   test_time: z.number(),
   response_time: z.number(), // in milliseconds
-  in_flight: z.number().int().nonnegative().default(0),
+  in_flight: z.number().int().nonnegative().nullish(),
   base_url: z.string().nullish(),
   other: z.string().default(''),
   balance: z.number().default(0), // in USD
@@ -151,6 +151,8 @@ export interface GetChannelsResponse {
   success: boolean
   message?: string
   data?: {
+    in_flight_scope: 'redis' | 'process'
+    in_flight_available: boolean
     items: Channel[]
     total: number
     page: number
@@ -163,6 +165,8 @@ export interface SearchChannelsResponse {
   success: boolean
   message?: string
   data?: {
+    in_flight_scope: 'redis' | 'process'
+    in_flight_available: boolean
     items: Channel[]
     total: number
     type_counts?: Record<string, number>

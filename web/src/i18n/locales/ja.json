@@ -1,4 +1,12 @@
 {
+  "Standard Relay": "標準 Relay",
+  "Updated every minute": "毎分更新",
+  "Redis shared": "Redis 共有",
+  "Current process": "現在のプロセス",
+  "Zero does not guarantee all requests have drained.": "ゼロでもすべてのリクエストの終了は保証されません。",
+  "Failed to fetch in-flight requests": "処理中のリクエスト数を取得できませんでした",
+  "Failed to load channels": "チャネルを読み込めませんでした",
+  "Refresh channels": "チャネルを更新",
   "translation": {
     "360": "360",
     "1000": "1000",

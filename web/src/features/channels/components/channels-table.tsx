@@ -24,7 +24,7 @@ import type {
   SortingState,
   Row,
 } from '@tanstack/react-table'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { useState, useMemo, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -46,15 +46,14 @@ import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { getLobeIcon } from '@/lib/lobe-icon'
 
-import { getChannels, searchChannels, getGroups } from '../api'
+import { getGroups } from '../api'
 import {
   DEFAULT_PAGE_SIZE,
   CHANNEL_STATUS,
   CHANNEL_STATUS_OPTIONS,
 } from '../constants'
+import { useChannelListQuery } from '../hooks/use-channel-list-query'
 import {
-  channelsQueryKeys,
-  aggregateChannelsByTag,
   getChannelTableRowId,
   isTagAggregateRow,
   getChannelTypeIcon,
@@ -175,9 +174,6 @@ export function ChannelsTable() {
     onColumnFiltersChange,
   })
 
-  // Determine whether to use search or regular list API
-  const shouldSearch = Boolean(globalFilter?.trim() || modelFilter.trim())
-
   const sortParams = useMemo(() => {
     const activeSort = sorting[0]
     if (
@@ -218,89 +214,28 @@ export function ChannelsTable() {
     [groupsData]
   )
 
-  // Fetch channels data
-  // eslint-disable-next-line @tanstack/query/exhaustive-deps
-  const { data, isLoading, isFetching } = useQuery({
-    queryKey: channelsQueryKeys.list({
-      keyword: globalFilter,
-      model: modelFilter,
-      group:
-        groupFilter.length > 0 && !groupFilter.includes('all')
-          ? groupFilter[0]
-          : undefined,
-      status:
-        statusFilter.length > 0 && !statusFilter.includes('all')
-          ? statusFilter[0]
-          : undefined,
-      type:
-        typeFilter.length > 0 && !typeFilter.includes('all')
-          ? Number(typeFilter[0])
-          : undefined,
-      tag_mode: enableTagMode,
-      id_sort: idSort,
-      ...sortParams,
-      p: pagination.pageIndex + 1,
-      page_size: pagination.pageSize,
-    }),
-    queryFn: async () => {
-      if (shouldSearch) {
-        return searchChannels({
-          keyword: globalFilter,
-          model: modelFilter,
-          group:
-            groupFilter.length > 0 && !groupFilter.includes('all')
-              ? groupFilter[0]
-              : undefined,
-          status:
-            statusFilter.length > 0 && !statusFilter.includes('all')
-              ? statusFilter[0]
-              : undefined,
-          type:
-            typeFilter.length > 0 && !typeFilter.includes('all')
-              ? Number(typeFilter[0])
-              : undefined,
-          tag_mode: enableTagMode,
-          id_sort: idSort,
-          ...sortParams,
-          p: pagination.pageIndex + 1,
-          page_size: pagination.pageSize,
-        })
-      } else {
-        return getChannels({
-          group:
-            groupFilter.length > 0 && !groupFilter.includes('all')
-              ? groupFilter[0]
-              : undefined,
-          status:
-            statusFilter.length > 0 && !statusFilter.includes('all')
-              ? statusFilter[0]
-              : undefined,
-          type:
-            typeFilter.length > 0 && !typeFilter.includes('all')
-              ? Number(typeFilter[0])
-              : undefined,
-          tag_mode: enableTagMode,
-          id_sort: idSort,
-          ...sortParams,
-          p: pagination.pageIndex + 1,
-          page_size: pagination.pageSize,
-        })
-      }
-    },
-    placeholderData: (previousData) => previousData,
+  const channelQuery = useChannelListQuery({
+    keyword: globalFilter,
+    model: modelFilter,
+    group:
+      groupFilter.length > 0 && !groupFilter.includes('all')
+        ? groupFilter[0]
+        : undefined,
+    status:
+      statusFilter.length > 0 && !statusFilter.includes('all')
+        ? statusFilter[0]
+        : undefined,
+    type:
+      typeFilter.length > 0 && !typeFilter.includes('all')
+        ? Number(typeFilter[0])
+        : undefined,
+    tag_mode: enableTagMode,
+    id_sort: idSort,
+    ...sortParams,
+    p: pagination.pageIndex + 1,
+    page_size: pagination.pageSize,
   })
-
-  // Apply tag aggregation if tag mode is enabled
-  const channels = useMemo(() => {
-    const rawChannels = data?.data?.items || []
-
-    if (enableTagMode && rawChannels.length > 0) {
-      return aggregateChannelsByTag(rawChannels)
-    }
-
-    return rawChannels
-  }, [data, enableTagMode])
-
+  const { data, isLoading, isFetching, channels } = channelQuery
   const totalCount = data?.data?.total || 0
   const typeCounts = data?.data?.type_counts
 
@@ -337,6 +272,7 @@ export function ChannelsTable() {
     manualSorting: true,
     manualFiltering: true,
     withExpandedRowModel: true,
+    autoResetExpanded: false,
     enableColumnResizing: !isMobile,
     ensurePageInRange,
   })
@@ -408,90 +344,143 @@ export function ChannelsTable() {
   ]
 
   return (
-    <DataTablePage
-      table={table}
-      columns={columns}
-      isLoading={isLoading}
-      isFetching={isFetching}
-      emptyTitle={t('No Channels Found')}
-      emptyDescription={t(
-        'No channels available. Create your first channel to get started.'
+    <div className='flex h-full min-h-0 flex-col gap-2'>
+      <div className='text-muted-foreground flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs'>
+        <span>
+          {t('Standard Relay')} · {t('Updated every minute')}
+        </span>
+        {data?.data?.in_flight_scope === 'redis' && (
+          <span>{t('Redis shared')}</span>
+        )}
+        {data?.data?.in_flight_scope === 'process' && (
+          <span>{t('Current process')}</span>
+        )}
+        <span>{t('Zero does not guarantee all requests have drained.')}</span>
+      </div>
+      {channelQuery.concurrencyUnavailable && (
+        <p role='status' className='text-destructive shrink-0 text-sm'>
+          {t('Failed to fetch in-flight requests')}
+        </p>
       )}
-      skeletonKeyPrefix='channel-skeleton'
-      enableCardView
-      viewModeStorageKey={CHANNELS_VIEW_MODE_STORAGE_KEY}
-      renderCard={(row, { isSelected }) => (
-        <ChannelCard row={row} isSelected={isSelected} />
-      )}
-      cardGridClassName='grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3'
-      applyHeaderSize
-      toolbarProps={{
-        searchPlaceholder: t('Filter by name, ID, or key...'),
-        searchDebounceMs: 500,
-        onReset: () => {
-          resetModelFilterInput()
-        },
-        additionalSearch: (
-          <Input
-            placeholder={t('Filter by model...')}
-            value={modelFilterInput}
-            onChange={onModelFilterInputChange}
-            onCompositionStart={onModelFilterCompositionStart}
-            onCompositionEnd={onModelFilterCompositionEnd}
-            className='w-full sm:w-[150px] lg:w-[180px]'
+      <DataTablePage
+        className='h-auto flex-1'
+        table={table}
+        columns={columns}
+        isLoading={isLoading}
+        isFetching={isFetching && channelQuery.isPlaceholderData}
+        emptyTitle={
+          channelQuery.isError && !data
+            ? t('Failed to load channels')
+            : t('No Channels Found')
+        }
+        emptyDescription={
+          channelQuery.isError && !data
+            ? ''
+            : t(
+                'No channels available. Create your first channel to get started.'
+              )
+        }
+        skeletonKeyPrefix='channel-skeleton'
+        enableCardView
+        viewModeStorageKey={CHANNELS_VIEW_MODE_STORAGE_KEY}
+        renderCard={(row, { isSelected }) => (
+          <ChannelCard
+            row={row}
+            isSelected={isSelected}
+            isExpanded={row.getIsExpanded()}
           />
-        ),
-        filters: [
-          {
-            columnId: 'status',
-            title: t('Status'),
-            options: [...CHANNEL_STATUS_OPTIONS],
-            singleSelect: true,
+        )}
+        cardGridClassName='grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3'
+        applyHeaderSize
+        toolbarProps={{
+          searchPlaceholder: t('Filter by name, ID, or key...'),
+          searchDebounceMs: 500,
+          onReset: () => {
+            resetModelFilterInput()
           },
-          {
-            columnId: 'type',
-            title: t('Type'),
-            options: typeFilterOptions,
-            singleSelect: true,
-          },
-          {
-            columnId: 'group',
-            title: t('Group'),
-            options: groupFilterOptions,
-            singleSelect: true,
-          },
-        ],
-        preActions: (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  variant='ghost'
-                  size='icon'
-                  onClick={() => setSensitiveVisible(!sensitiveVisible)}
-                  aria-label={sensitiveVisible ? t('Hide') : t('Show')}
-                  className='text-muted-foreground hover:text-foreground size-8'
-                />
-              }
-            >
-              {sensitiveVisible ? <Eye /> : <EyeOff />}
-            </TooltipTrigger>
-            <TooltipContent>
-              {sensitiveVisible ? t('Hide') : t('Show')}
-            </TooltipContent>
-          </Tooltip>
-        ),
-      }}
-      getRowClassName={(row, { isMobile }) => {
-        if (!isDisabledChannelRow(row.original)) {
-          return undefined
-        }
-        if (isMobile) {
-          return DISABLED_ROW_MOBILE
-        }
-        return DISABLED_ROW_DESKTOP
-      }}
-      bulkActions={batchMode ? <DataTableBulkActions table={table} /> : null}
-    />
+          additionalSearch: (
+            <Input
+              placeholder={t('Filter by model...')}
+              value={modelFilterInput}
+              onChange={onModelFilterInputChange}
+              onCompositionStart={onModelFilterCompositionStart}
+              onCompositionEnd={onModelFilterCompositionEnd}
+              className='w-full sm:w-[150px] lg:w-[180px]'
+            />
+          ),
+          filters: [
+            {
+              columnId: 'status',
+              title: t('Status'),
+              options: [...CHANNEL_STATUS_OPTIONS],
+              singleSelect: true,
+            },
+            {
+              columnId: 'type',
+              title: t('Type'),
+              options: typeFilterOptions,
+              singleSelect: true,
+            },
+            {
+              columnId: 'group',
+              title: t('Group'),
+              options: groupFilterOptions,
+              singleSelect: true,
+            },
+          ],
+          preActions: (
+            <>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      aria-label={t('Refresh channels')}
+                      disabled={isFetching}
+                      onClick={() =>
+                        void channelQuery.refetch({ cancelRefetch: false })
+                      }
+                      className='size-8'
+                    />
+                  }
+                >
+                  <RefreshCw className={isFetching ? 'animate-spin' : ''} />
+                </TooltipTrigger>
+                <TooltipContent>{t('Refresh channels')}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      onClick={() => setSensitiveVisible(!sensitiveVisible)}
+                      aria-label={sensitiveVisible ? t('Hide') : t('Show')}
+                      className='text-muted-foreground hover:text-foreground size-8'
+                    />
+                  }
+                >
+                  {sensitiveVisible ? <Eye /> : <EyeOff />}
+                </TooltipTrigger>
+                <TooltipContent>
+                  {sensitiveVisible ? t('Hide') : t('Show')}
+                </TooltipContent>
+              </Tooltip>
+            </>
+          ),
+        }}
+        getRowClassName={(row, { isMobile }) => {
+          if (!isDisabledChannelRow(row.original)) {
+            return undefined
+          }
+          if (isMobile) {
+            return DISABLED_ROW_MOBILE
+          }
+          return DISABLED_ROW_DESKTOP
+        }}
+        bulkActions={batchMode ? <DataTableBulkActions table={table} /> : null}
+      />
+    </div>
   )
 }

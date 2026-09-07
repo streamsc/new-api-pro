@@ -1,4 +1,12 @@
 {
+  "Standard Relay": "Standard Relay",
+  "Updated every minute": "Updated every minute",
+  "Redis shared": "Redis shared",
+  "Current process": "Current process",
+  "Zero does not guarantee all requests have drained.": "Zero does not guarantee all requests have drained.",
+  "Failed to fetch in-flight requests": "Failed to fetch in-flight requests",
+  "Failed to load channels": "Failed to load channels",
+  "Refresh channels": "Refresh channels",
   "translation": {
     "360": "360",
     "1000": "1000",

@@ -45,6 +45,8 @@ function ChannelCardComponent({
 }: {
   row: Row<Channel>
   isSelected: boolean
+  // TanStack keeps the same row object when expansion changes.
+  isExpanded: boolean
 }) {
   const { t } = useTranslation()
   const { sensitiveVisible } = useChannels()
