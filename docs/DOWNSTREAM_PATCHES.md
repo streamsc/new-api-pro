@@ -56,7 +56,9 @@ GOWORK=off go vet ./...
 
 受影响前端文件另通过 oxlint 和保留版权头的 oxfmt 格式检查。此验证不包含生产部署、Docker 镜像发布或线上配置修改。
 
-2026-09-07 发布前再次通过根模块和独立 RelayKit 的 test/build/vet、并发 race、前端 38 个文件 / 196 项测试、类型检查、生产构建、受影响文件 lint/format 和 `git diff --check`。两个新增前端测试已归入模块的 `__tests__` 目录；运行时验证沿用上述 2026-09-05 记录。发布目标为 `v1.0.0-rc.25-pro.5`，容器及跨平台产物以 tag workflow 结果为准。
+2026-09-07 发布前再次通过根模块和独立 RelayKit 的 test/build/vet、并发 race、前端 38 个文件 / 196 项测试、类型检查、生产构建、受影响文件 lint/format 和 `git diff --check`。两个新增前端测试已归入模块的 `__tests__` 目录；运行时验证沿用上述 2026-09-05 记录。
+
+`v1.0.0-rc.25-pro.5` 已从 `abfde8c0b5afd88ea784166128f248b5d1fe30fe` 发布：[跨平台 Release](https://github.com/streamsc/new-api-pro/actions/runs/34079619869) 与 [GHCR](https://github.com/streamsc/new-api-pro/actions/runs/34079619819) 均通过。四份二进制的发布校验和与 GitHub 资产摘要一致；容器通过 OCI/provenance、运行配置和 amd64/arm64 冒烟检查，两个平台及索引的 Cosign 签名完成。远端 OCI 索引摘要为 `sha256:a22b1e4a92da2d61ec00d4256fe36d4484107a69bbbc4ddba478379508612082`。本次发布未部署到生产，也未执行 Artifactory 导入。
 
 ### Existing cancellation limitation
 
@@ -101,3 +103,4 @@ git cherry-pick -x dde5ef0f2
 - `release/v1.0.0-rc.25-pro`：基于官方 rc.25 重建补丁队列，纳入渠道测试、参数透传和额度结算修复。
 - `v1.0.0-rc.25-pro.3`：增加标准 Relay 渠道并发控制、在途计数，以及 Redis/单实例两种运行语义。
 - `v1.0.0-rc.25-pro.4`：增加基于已认证用户或令牌身份的上游请求头 HMAC 映射。
+- `v1.0.0-rc.25-pro.5`：完善 Issue #3 的渠道分钟采样、未知值及作用域展示；保留并单独披露等待上游响应头期间的取消释放缺陷。
