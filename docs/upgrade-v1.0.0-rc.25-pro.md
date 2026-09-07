@@ -10,6 +10,7 @@
 - Responses 转换保留 penalty、prompt cache 和 reasoning/tool-call 信息，并修复 cached token 结算。
 - 充值、退款、预扣和额度缓存同步改为带边界检查的原子更新，避免重复回调、并发超扣和缓存余额滞后。
 - 渠道支持配置标准 Relay 最大并发数，并在管理页展示当前在途请求数与上限。
+- `.5` 完善渠道在途展示：可见页面每 60 秒采样，支持手动刷新，计数失败时保留配置并显示未知值，标明 Redis 共享或当前进程作用域；刷新保留选择、展开与编辑草稿。
 - 渠道请求头覆盖支持将已认证用户或令牌身份映射为稳定 HMAC，上游无需接收原始 ID 即可执行亲和路由。
 - 保留 Pro 的 Redis Sentinel、音频转录/翻译 SSE、Artifactory 7.71.21 容器兼容和 GHCR 多架构发布门禁。
 
@@ -23,6 +24,7 @@
 - 音频 multipart 请求继续接受 `stream=true`，转录和翻译端点以 SSE 返回上游流。
 - 渠道 `setting.max_concurrency` 接受非负整数；`0` 或未设置表示无限制。标准 Relay 请求超过上限时直接返回 HTTP 429，不切换渠道、不重试、不自动禁用渠道，也不收费。
 - `/v1/realtime`、异步任务、Midjourney、Suno、渠道测试、余额查询和模型列表不计入渠道并发。
+- `.5` 的渠道列表、搜索与详情接口将 `in_flight` 定义为可空整数：真实零值返回 `0`，未知返回 `null`。列表与搜索额外返回 `in_flight_scope` 和 `in_flight_available`；仅计数读取失败时仍返回成功的渠道配置响应。直接消费这些接口的工具需要处理 `null`。
 - 未启用 Redis 时，并发计数仅在当前单实例进程内维护。启用 Redis/Sentinel 时，所有应用实例通过 Redis ZSET 租约共享计数；Redis 运行时不可用返回 HTTP 503，不降级为本地计数。
 - 渠道 `header_override` 新增完整值占位符 `{context_hmac:user_id}` 和 `{context_hmac:token_id}`。它们只读取鉴权后的 `RelayInfo` 身份，输出 `v1:<source>:<sha256-hmac>`；身份缺失时省略请求头，渠道测试和模型获取不发送派生身份。
 - 身份 HMAC 适用于现有普通、流式和 `/v1/realtime` 请求头覆盖路径。非法、未知、大小写变化或与其他文本拼接的 `context_hmac` 占位符返回 `channel:header_override_invalid`。
@@ -52,13 +54,13 @@
 `v1.0.0-rc.25-pro.1` 的容器工作流在镜像推送后因 attestation 配置类型校验错误而停止，没有完成运行时校验、双架构 smoke 和 Cosign 签名。该标签保持不可变并由 `.2` 取代，不应作为部署目标。
 
 1. 停止当前实例，备份数据库并记录当前镜像标签或 digest。
-2. 部署 `ghcr.io/streamsc/new-api-pro:v1.0.0-rc.25-pro.4`，确认启动日志没有数据库、Redis 或渠道设置错误。
-3. 验证渠道页显示“在途 / 上限”，并确认标准 Relay 达到渠道上限时直接返回 429。
+2. 确认 `.5` 的 GitHub Release 和 GHCR tag workflow 均通过，再部署 `ghcr.io/streamsc/new-api-pro:v1.0.0-rc.25-pro.5`，确认启动日志没有数据库、Redis 或渠道设置错误。
+3. 验证渠道页显示“在途 / 上限”、分钟采样和作用域提示，后台刷新不打断编辑，计数失败显示未知值；确认标准 Relay 达到渠道上限时直接返回 429。
 4. 分别配置 `{context_hmac:user_id}` 和 `{context_hmac:token_id}`，验证相同身份输出稳定、不同来源相互隔离，且渠道测试不发送派生头。
 5. 验证 `/api/status`、登录、普通 Chat/Responses、Realtime、音频 SSE、渠道测试、充值/兑换和 Sentinel 连接。
 6. 抽查使用日志中的 cached token、reasoning effort、条件倍率和最终扣费，并确认日志不包含原始身份或完整 HMAC。
 
-回滚本次身份 HMAC 功能时停止 `.4` 实例并重新部署 `v1.0.0-rc.25-pro.3`。由于没有数据库结构迁移，正常回滚不需要恢复备份；仅在确认数据已损坏时恢复升级前备份。
+回滚本次渠道展示补丁时停止 `.5` 实例并重新部署 `v1.0.0-rc.25-pro.4`。由于没有数据库结构迁移，正常回滚不需要恢复备份；仅在确认数据已损坏时恢复升级前备份。
 
 ## Operational risks
 
@@ -66,7 +68,9 @@
 - 完整请求体或字段透传会改变协议转换边界；错误配置可能向上游发送不支持或敏感字段。
 - Redis 中的额度缓存现在参与原子预扣；Sentinel 或 Redis 异常应明确出现在日志中，不能把缓存错误当作成功结算。
 - 启用 Redis 后，渠道并发控制采用 fail-closed 语义：Redis 运行时不可用会拒绝新的标准 Relay 请求并返回 503。发布前应确认 Redis/Sentinel 稳定且所有应用实例连接同一逻辑主库。
-- Redis 租约有效期为 120 秒，每 30 秒续租；连续 90 秒无法续租会取消上游请求。进程异常退出留下的计数会在租约到期后清理。
+- Redis 租约有效期为 120 秒，每 30 秒续租；连续 90 秒无法续租会取消预留上下文，但上游 HTTP 等待阶段存在取消传播缺陷，不能保证上游立即停止。进程异常退出留下的计数会在租约到期后清理。
+- 基线与 `.5` 均实测存在：等待上游响应头时，客户端取消或客户端超时退出不能及时释放预留，通常需等上游请求结束。无 Redis 且 `RELAY_TIMEOUT=0` 时可能长期占用；Redis 预留到期后计数减少也不保证上游停止。已开始输出的流式断开释放正常，详见 [独立缺陷记录](DOWNSTREAM_PATCHES.md#existing-cancellation-limitation)。
+- 分钟采样无法捕捉所有短请求或瞬间峰值，零值不能用于保证所有入口请求排空或判断可以安全停机。
 - 未启用 Redis 的计数仅适用于单应用实例；同时运行多个无 Redis 实例会分别执行上限，不能提供全局并发约束。
 - 身份 HMAC 依赖有效 `CRYPTO_SECRET` 的稳定性；多实例密钥不一致或轮换密钥都会改变上游看到的亲和键。
 - 充值上限检查可能拒绝此前会被截断或溢出的异常订单，这是预期的安全行为。
@@ -76,6 +80,7 @@
 
 | Check | Result |
 | --- | --- |
+| `.5` local release checks (2026-09-07) | Passed: root and independent RelayKit test/build/vet, channel concurrency race, Vitest 38 files / 196 tests, typecheck, production build, affected-file lint/format, and diff check. Runtime checks and the existing cancellation failure are recorded in `DOWNSTREAM_PATCHES.md`. |
 | Backend vet, build, and root tests | Passed for `.4` source |
 | RelayKit independent vet, build, and tests | Passed for `.4` source |
 | Targeted tests | Channel HMAC tests and race checks passed; existing Sentinel, audio, and channel concurrency coverage remains enabled |
