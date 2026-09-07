@@ -1,4 +1,12 @@
 {
+  "Standard Relay": "Relay tiêu chuẩn",
+  "Updated every minute": "Cập nhật mỗi phút",
+  "Redis shared": "Redis dùng chung",
+  "Current process": "Tiến trình hiện tại",
+  "Zero does not guarantee all requests have drained.": "Giá trị 0 không đảm bảo mọi yêu cầu đã hoàn tất.",
+  "Failed to fetch in-flight requests": "Không thể lấy số yêu cầu đang xử lý",
+  "Failed to load channels": "Không thể tải kênh",
+  "Refresh channels": "Làm mới kênh",
   "translation": {
     "360": "360",
     "1000": "1000",

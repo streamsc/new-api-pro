@@ -1,4 +1,12 @@
 {
+  "Standard Relay": "Relay standard",
+  "Updated every minute": "Actualisé chaque minute",
+  "Redis shared": "Redis partagé",
+  "Current process": "Processus actuel",
+  "Zero does not guarantee all requests have drained.": "Une valeur nulle ne garantit pas la fin de toutes les requêtes.",
+  "Failed to fetch in-flight requests": "Échec de récupération des requêtes en cours",
+  "Failed to load channels": "Échec du chargement des canaux",
+  "Refresh channels": "Actualiser les canaux",
   "translation": {
     "360": "360",
     "1000": "1000",

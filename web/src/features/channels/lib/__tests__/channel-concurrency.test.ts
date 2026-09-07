@@ -93,28 +93,40 @@ describe('channel concurrency settings', () => {
   })
 })
 
-describe('channel concurrency aggregation', () => {
-  test('sums finite child limits and in-flight requests', () => {
+describe('channel concurrency display', () => {
+  test('does not infer a shared pool for finite tag children', () => {
     const [row] = aggregateChannelsByTag([
       channelFixture(1, 2, 4),
       channelFixture(2, 3, 6),
     ])
 
-    expect(getChannelConcurrency(row)).toEqual({
-      inFlight: 5,
-      maximum: 10,
-    })
+    expect(getChannelConcurrency(row)).toBeNull()
+    expect(row.in_flight).toBeNull()
   })
 
-  test('shows an unlimited aggregate when any child is unlimited', () => {
+  test('does not infer a shared pool for mixed and disabled tag children', () => {
     const [row] = aggregateChannelsByTag([
       channelFixture(1, 2, 4),
-      channelFixture(2, 1, 0),
+      { ...channelFixture(2, 1, 0), status: 0 },
     ])
 
-    expect(getChannelConcurrency(row)).toEqual({
-      inFlight: 3,
-      maximum: 0,
-    })
+    expect(getChannelConcurrency(row)).toBeNull()
   })
+
+  test.each([0, 3, null, undefined])(
+    'preserves known and unknown counts: %s',
+    (count) => {
+      for (const maximum of [0, 10]) {
+        expect(
+          getChannelConcurrency({
+            ...channelFixture(1, 0, maximum),
+            in_flight: count,
+          })
+        ).toEqual({
+          inFlight: count ?? null,
+          maximum,
+        })
+      }
+    }
+  )
 })

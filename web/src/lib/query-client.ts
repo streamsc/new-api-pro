@@ -57,6 +57,7 @@ export function createAppQueryClient(
     }),
     queryCache: new QueryCache({
       onError: (error, query) => {
+        if (query.meta?.channelListHandlesBackgroundErrors && query.state.data !== undefined) return
         if (query.meta?.errorToast !== false) handleServerError(error)
         if (getServerErrorStatus(error) === 500) onInternalServerError?.()
       },

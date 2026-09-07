@@ -1,4 +1,12 @@
 {
+  "Standard Relay": "Стандартный Relay",
+  "Updated every minute": "Обновление каждую минуту",
+  "Redis shared": "Общий Redis",
+  "Current process": "Текущий процесс",
+  "Zero does not guarantee all requests have drained.": "Ноль не гарантирует завершение всех запросов.",
+  "Failed to fetch in-flight requests": "Не удалось получить число текущих запросов",
+  "Failed to load channels": "Не удалось загрузить каналы",
+  "Refresh channels": "Обновить каналы",
   "translation": {
     "360": "360",
     "1000": "1000",
