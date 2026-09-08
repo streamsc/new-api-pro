@@ -170,3 +170,13 @@ Delivery recheck on 2026-09-08: root and independent relaykit `go vet ./...` and
 `go build ./...`, `make test`, and `go test -race ./controller -run '^TestMetricsHTTP'
 -count=1` passed after adding the lower-limit HTTP assertion. Remote CI results are
 recorded on the delivery pull request.
+
+The first PR CI run passed backend checks but found two pre-existing
+`Promise.withResolvers` calls in channel-list tests that are unavailable under the
+project's ES2022 TypeScript library. Delivery includes a test-only correction using
+the repository's existing deferred-Promise pattern; no frontend application logic,
+compiler target or dependency was changed. Forced typecheck and affected-file lint
+passed. All 38 frontend test files (196 tests) passed locally with
+`NODE_OPTIONS=--no-experimental-webstorage bun run test`: the unmodified Node 26
+experimental storage globals had caused eight jsdom storage failures. This local
+environment override is not a production or CI configuration change.
