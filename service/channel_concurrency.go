@@ -255,7 +255,12 @@ func (lease *ChannelConcurrencyLease) Release() {
 	})
 }
 
-func GetChannelConcurrencyCounts(channelIDs []int) (map[int]int, error) {
+func GetChannelConcurrencyCounts(parent context.Context, channelIDs []int) (map[int]int, error) {
+	ctx, cancel := context.WithTimeout(parent, channelRedisTimeout)
+	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	counts := make(map[int]int, len(channelIDs))
 	if !common.RedisEnabled {
 		memoryChannelConcurrency.Lock()
@@ -269,8 +274,6 @@ func GetChannelConcurrencyCounts(channelIDs []int) (map[int]int, error) {
 		return nil, fmt.Errorf("%w: Redis client is not initialized", ErrChannelConcurrencyStore)
 	}
 
-	ctx, cancel := redisTimeoutContext()
-	defer cancel()
 	pipe := common.RDB.Pipeline()
 	commands := make(map[int]*redis.Cmd, len(channelIDs))
 	for _, channelID := range channelIDs {
