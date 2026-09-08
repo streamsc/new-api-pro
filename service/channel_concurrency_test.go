@@ -80,7 +80,7 @@ func TestMemoryChannelConcurrencyEnforcesLimitAtomically(t *testing.T) {
 	require.Len(t, leases, 2)
 	assert.Equal(t, attempts-2, limited)
 
-	counts, err := GetChannelConcurrencyCounts([]int{7, 8})
+	counts, err := GetChannelConcurrencyCounts(context.Background(), []int{7, 8})
 	require.NoError(t, err)
 	assert.Equal(t, 2, counts[7])
 	assert.Zero(t, counts[8])
@@ -88,7 +88,7 @@ func TestMemoryChannelConcurrencyEnforcesLimitAtomically(t *testing.T) {
 	for _, lease := range leases {
 		lease.Release()
 	}
-	counts, err = GetChannelConcurrencyCounts([]int{7})
+	counts, err = GetChannelConcurrencyCounts(context.Background(), []int{7})
 	require.NoError(t, err)
 	assert.Zero(t, counts[7])
 }
@@ -103,7 +103,7 @@ func TestMemoryChannelConcurrencyTracksUnlimitedChannels(t *testing.T) {
 	t.Cleanup(first.Release)
 	t.Cleanup(second.Release)
 
-	counts, err := GetChannelConcurrencyCounts([]int{11})
+	counts, err := GetChannelConcurrencyCounts(context.Background(), []int{11})
 	require.NoError(t, err)
 	assert.Equal(t, 2, counts[11])
 }
@@ -124,7 +124,7 @@ func TestRedisChannelConcurrencySharesLimitAndPrunesExpiredOrphans(t *testing.T)
 		Member: "orphan",
 	}).Err())
 
-	counts, err := GetChannelConcurrencyCounts([]int{21})
+	counts, err := GetChannelConcurrencyCounts(context.Background(), []int{21})
 	require.NoError(t, err)
 	assert.Zero(t, counts[21])
 
@@ -139,6 +139,6 @@ func TestRedisChannelConcurrencyFailsClosed(t *testing.T) {
 
 	_, _, err := AcquireChannelConcurrency(context.Background(), 31, 1, "request")
 	assert.ErrorIs(t, err, ErrChannelConcurrencyStore)
-	_, err = GetChannelConcurrencyCounts([]int{31})
+	_, err = GetChannelConcurrencyCounts(context.Background(), []int{31})
 	assert.ErrorIs(t, err, ErrChannelConcurrencyStore)
 }
