@@ -37,6 +37,7 @@ require (
 	github.com/nicksnyder/go-i18n/v2 v2.6.1
 	github.com/pkg/errors v0.9.1
 	github.com/pquerna/otp v1.5.0
+	github.com/prometheus/client_golang v1.22.0
 	github.com/samber/hot v0.11.0
 	github.com/samber/lo v1.53.0
 	github.com/shirou/gopsutil v3.21.11+incompatible
@@ -79,6 +80,7 @@ require (
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
 	github.com/google/pprof v0.0.0-20250317173921-a4b03ec1a45e // indirect
 	github.com/hashicorp/go-version v1.8.0 // indirect
+	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/paulmach/orb v0.12.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.25 // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
@@ -148,7 +150,6 @@ require (
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_golang v1.22.0 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.62.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect

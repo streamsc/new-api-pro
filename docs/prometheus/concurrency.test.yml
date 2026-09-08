@@ -1,0 +1,144 @@
+rule_files:
+  - concurrency.rules.yml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: "up{job=\"new-api\",instance=\"a\",deployment=\"test\",concurrency_domain=\"r1\"}"
+        values: "1 1 0"
+      - series: "new_api_concurrency_scrape_success{job=\"new-api\",instance=\"a\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",component=\"channel_config\"}"
+        values: "0 0 0"
+      - series: "new_api_concurrency_scrape_success{job=\"new-api\",instance=\"a\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",component=\"concurrency\"}"
+        values: "1 1 1"
+      - series: "new_api_channel_concurrency_in_flight{job=\"new-api\",instance=\"a\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",channel_id=\"1\"}"
+        values: "2 2 2"
+      - series: "new_api_channel_concurrency_limit_enabled{job=\"new-api\",instance=\"a\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",channel_id=\"1\"}"
+        values: "1 1 1"
+      - series: "new_api_channel_concurrency_limit{job=\"new-api\",instance=\"a\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",channel_id=\"1\"}"
+        values: "10 10 10"
+      - series: "new_api_channel_concurrency_in_flight{job=\"new-api\",instance=\"a\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",channel_id=\"2\"}"
+        values: "2 2 2"
+      - series: "new_api_channel_concurrency_limit_enabled{job=\"new-api\",instance=\"a\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",channel_id=\"2\"}"
+        values: "1 1 1"
+      - series: "new_api_channel_concurrency_limit{job=\"new-api\",instance=\"a\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",channel_id=\"2\"}"
+        values: "10 10 10"
+      - series: "new_api_channel_concurrency_in_flight{job=\"new-api\",instance=\"a\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",channel_id=\"3\"}"
+        values: "2 2 2"
+      - series: "new_api_channel_concurrency_limit_enabled{job=\"new-api\",instance=\"a\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",channel_id=\"3\"}"
+        values: "0 0 0"
+      - series: "new_api_channel_concurrency_in_flight{job=\"new-api\",instance=\"a\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",channel_id=\"4\"}"
+        values: "2 2 2"
+      - series: "up{job=\"new-api\",instance=\"b\",deployment=\"test\",concurrency_domain=\"r1\"}"
+        values: "1 0 0"
+      - series: "new_api_concurrency_scrape_success{job=\"new-api\",instance=\"b\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",component=\"channel_config\"}"
+        values: "1 1 1"
+      - series: "new_api_concurrency_scrape_success{job=\"new-api\",instance=\"b\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",component=\"concurrency\"}"
+        values: "1 1 1"
+      - series: "new_api_channel_concurrency_in_flight{job=\"new-api\",instance=\"b\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",channel_id=\"1\"}"
+        values: "2 2 2"
+      - series: "new_api_channel_concurrency_limit_enabled{job=\"new-api\",instance=\"b\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",channel_id=\"1\"}"
+        values: "1 1 1"
+      - series: "new_api_channel_concurrency_limit{job=\"new-api\",instance=\"b\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",channel_id=\"1\"}"
+        values: "10 10 10"
+      - series: "new_api_channel_concurrency_in_flight{job=\"new-api\",instance=\"b\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",channel_id=\"2\"}"
+        values: "2 2 2"
+      - series: "new_api_channel_concurrency_limit_enabled{job=\"new-api\",instance=\"b\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",channel_id=\"2\"}"
+        values: "1 1 1"
+      - series: "new_api_channel_concurrency_limit{job=\"new-api\",instance=\"b\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",channel_id=\"2\"}"
+        values: "20 20 20"
+      - series: "new_api_channel_concurrency_in_flight{job=\"new-api\",instance=\"b\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",channel_id=\"3\"}"
+        values: "2 2 2"
+      - series: "new_api_channel_concurrency_limit_enabled{job=\"new-api\",instance=\"b\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",channel_id=\"3\"}"
+        values: "0 0 0"
+      - series: "new_api_channel_concurrency_in_flight{job=\"new-api\",instance=\"b\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",channel_id=\"4\"}"
+        values: "2 2 2"
+      - series: "new_api_channel_concurrency_limit_enabled{job=\"new-api\",instance=\"b\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",channel_id=\"4\"}"
+        values: "1 1 1"
+      - series: "new_api_channel_concurrency_limit{job=\"new-api\",instance=\"b\",deployment=\"test\",concurrency_domain=\"r1\",scope=\"redis\",channel_id=\"4\"}"
+        values: "10 10 10"
+      - series: "up{job=\"new-api\",instance=\"c\",deployment=\"test\",concurrency_domain=\"local\"}"
+        values: "1 1 1"
+      - series: "new_api_concurrency_scrape_success{job=\"new-api\",instance=\"c\",deployment=\"test\",concurrency_domain=\"local\",scope=\"process\",component=\"channel_config\"}"
+        values: "1 1 1"
+      - series: "new_api_concurrency_scrape_success{job=\"new-api\",instance=\"c\",deployment=\"test\",concurrency_domain=\"local\",scope=\"process\",component=\"concurrency\"}"
+        values: "1 1 1"
+      - series: "new_api_channel_concurrency_in_flight{job=\"new-api\",instance=\"c\",deployment=\"test\",concurrency_domain=\"local\",scope=\"process\",channel_id=\"1\"}"
+        values: "2 2 2"
+      - series: "new_api_channel_concurrency_limit_enabled{job=\"new-api\",instance=\"c\",deployment=\"test\",concurrency_domain=\"local\",scope=\"process\",channel_id=\"1\"}"
+        values: "1 1 1"
+      - series: "new_api_channel_concurrency_limit{job=\"new-api\",instance=\"c\",deployment=\"test\",concurrency_domain=\"local\",scope=\"process\",channel_id=\"1\"}"
+        values: "10 10 10"
+      - series: "up{job=\"new-api\",instance=\"d\",deployment=\"test\",concurrency_domain=\"local\"}"
+        values: "1 1 1"
+      - series: "new_api_concurrency_scrape_success{job=\"new-api\",instance=\"d\",deployment=\"test\",concurrency_domain=\"local\",scope=\"process\",component=\"channel_config\"}"
+        values: "1 1 1"
+      - series: "new_api_concurrency_scrape_success{job=\"new-api\",instance=\"d\",deployment=\"test\",concurrency_domain=\"local\",scope=\"process\",component=\"concurrency\"}"
+        values: "1 1 1"
+      - series: "new_api_channel_concurrency_in_flight{job=\"new-api\",instance=\"d\",deployment=\"test\",concurrency_domain=\"local\",scope=\"process\",channel_id=\"1\"}"
+        values: "2 2 2"
+      - series: "new_api_channel_concurrency_limit_enabled{job=\"new-api\",instance=\"d\",deployment=\"test\",concurrency_domain=\"local\",scope=\"process\",channel_id=\"1\"}"
+        values: "1 1 1"
+      - series: "new_api_channel_concurrency_limit{job=\"new-api\",instance=\"d\",deployment=\"test\",concurrency_domain=\"local\",scope=\"process\",channel_id=\"1\"}"
+        values: "10 10 10"
+      - series: "up{job=\"new-api\",instance=\"e\",deployment=\"test\",concurrency_domain=\"r2\"}"
+        values: "1 1 1"
+      - series: "new_api_concurrency_scrape_success{job=\"new-api\",instance=\"e\",deployment=\"test\",concurrency_domain=\"r2\",scope=\"redis\",component=\"channel_config\"}"
+        values: "1 1 1"
+      - series: "new_api_concurrency_scrape_success{job=\"new-api\",instance=\"e\",deployment=\"test\",concurrency_domain=\"r2\",scope=\"redis\",component=\"concurrency\"}"
+        values: "1 1 1"
+      - series: "new_api_channel_concurrency_in_flight{job=\"new-api\",instance=\"e\",deployment=\"test\",concurrency_domain=\"r2\",scope=\"redis\",channel_id=\"1\"}"
+        values: "7 7 7"
+      - series: "new_api_channel_concurrency_limit_enabled{job=\"new-api\",instance=\"e\",deployment=\"test\",concurrency_domain=\"r2\",scope=\"redis\",channel_id=\"1\"}"
+        values: "1 1 1"
+      - series: "new_api_channel_concurrency_limit{job=\"new-api\",instance=\"e\",deployment=\"test\",concurrency_domain=\"r2\",scope=\"redis\",channel_id=\"1\"}"
+        values: "10 10 10"
+    promql_expr_test:
+      - expr: "new_api:redis_concurrency_in_flight:deduplicated{concurrency_domain=\"r1\",channel_id=\"1\"}"
+        eval_time: 0m
+        exp_samples:
+          - labels: "{__name__=\"new_api:redis_concurrency_in_flight:deduplicated\",deployment=\"test\",concurrency_domain=\"r1\",channel_id=\"1\"}"
+            value: 2
+      - expr: "new_api:redis_concurrency_utilization:ratio{concurrency_domain=\"r1\",channel_id=\"1\"}"
+        eval_time: 0m
+        exp_samples:
+          - labels: "{__name__=\"new_api:redis_concurrency_utilization:ratio\",deployment=\"test\",concurrency_domain=\"r1\",channel_id=\"1\"}"
+            value: 0.2
+      - expr: "new_api:redis_concurrency_utilization:ratio{concurrency_domain=\"r1\",channel_id=\"2\"}"
+        eval_time: 0m
+        exp_samples: []
+      - expr: "new_api:redis_concurrency_config:inconsistent{channel_id=\"2\"}"
+        eval_time: 0m
+        exp_samples:
+          - labels: "{__name__=\"new_api:redis_concurrency_config:inconsistent\",deployment=\"test\",concurrency_domain=\"r1\",channel_id=\"2\"}"
+            value: 1
+      - expr: "new_api:redis_concurrency_utilization:ratio{channel_id=\"3\"}"
+        eval_time: 0m
+        exp_samples: []
+      - expr: "new_api:redis_concurrency_utilization:ratio{channel_id=\"4\"}"
+        eval_time: 0m
+        exp_samples:
+          - labels: "{__name__=\"new_api:redis_concurrency_utilization:ratio\",deployment=\"test\",concurrency_domain=\"r1\",channel_id=\"4\"}"
+            value: 0.2
+      - expr: "new_api:process_concurrency_in_flight:sum"
+        eval_time: 0m
+        exp_samples:
+          - labels: "{__name__=\"new_api:process_concurrency_in_flight:sum\",deployment=\"test\",channel_id=\"1\"}"
+            value: 4
+      - expr: "new_api:process_concurrency_utilization:ratio{instance=\"c\"}"
+        eval_time: 0m
+        exp_samples:
+          - labels: "{__name__=\"new_api:process_concurrency_utilization:ratio\",job=\"new-api\",instance=\"c\",deployment=\"test\",concurrency_domain=\"local\",scope=\"process\",channel_id=\"1\"}"
+            value: 0.2
+      - expr: "new_api:redis_concurrency_in_flight:deduplicated{concurrency_domain=\"r2\"}"
+        eval_time: 0m
+        exp_samples:
+          - labels: "{__name__=\"new_api:redis_concurrency_in_flight:deduplicated\",deployment=\"test\",concurrency_domain=\"r2\",channel_id=\"1\"}"
+            value: 7
+      - expr: "new_api:redis_concurrency_in_flight:deduplicated{concurrency_domain=\"r1\",channel_id=\"1\"}"
+        eval_time: 1m
+        exp_samples:
+          - labels: "{__name__=\"new_api:redis_concurrency_in_flight:deduplicated\",deployment=\"test\",concurrency_domain=\"r1\",channel_id=\"1\"}"
+            value: 2
+      - expr: "new_api:redis_concurrency_in_flight:deduplicated{concurrency_domain=\"r1\"}"
+        eval_time: 2m
+        exp_samples: []

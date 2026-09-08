@@ -195,12 +195,12 @@ type channelWithConcurrency struct {
 	InFlight *int `json:"in_flight"`
 }
 
-func channelsWithConcurrency(channels []*model.Channel) ([]channelWithConcurrency, error) {
+func channelsWithConcurrency(ctx context.Context, channels []*model.Channel) ([]channelWithConcurrency, error) {
 	ids := make([]int, 0, len(channels))
 	for _, channel := range channels {
 		ids = append(ids, channel.Id)
 	}
-	counts, err := service.GetChannelConcurrencyCounts(ids)
+	counts, err := service.GetChannelConcurrencyCounts(ctx, ids)
 	result := make([]channelWithConcurrency, 0, len(channels))
 	for _, channel := range channels {
 		item := channelWithConcurrency{Channel: channel}
@@ -292,7 +292,7 @@ func GetAllChannels(c *gin.Context) {
 	for _, datum := range channelData {
 		clearChannelInfo(datum)
 	}
-	items, err := channelsWithConcurrency(channelData)
+	items, err := channelsWithConcurrency(c.Request.Context(), channelData)
 	if err != nil {
 		logger.LogError(c, "failed to read channel concurrency: "+err.Error())
 	}
@@ -505,7 +505,7 @@ func SearchChannels(c *gin.Context) {
 	for _, datum := range pagedData {
 		clearChannelInfo(datum)
 	}
-	items, err := channelsWithConcurrency(pagedData)
+	items, err := channelsWithConcurrency(c.Request.Context(), pagedData)
 	if err != nil {
 		logger.LogError(c, "failed to read channel concurrency: "+err.Error())
 	}
@@ -538,7 +538,7 @@ func GetChannel(c *gin.Context) {
 	if channel != nil {
 		clearChannelInfo(channel)
 	}
-	items, err := channelsWithConcurrency([]*model.Channel{channel})
+	items, err := channelsWithConcurrency(c.Request.Context(), []*model.Channel{channel})
 	if err != nil {
 		logger.LogError(c, "failed to read channel concurrency: "+err.Error())
 	}
