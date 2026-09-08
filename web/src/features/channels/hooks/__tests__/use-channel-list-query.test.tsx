@@ -55,6 +55,14 @@ function response(count: number | null = 3, id = 1): GetChannelsResponse {
   }
 }
 
+function deferredChannelResponse() {
+  let resolve!: (value: { data: GetChannelsResponse }) => void
+  const promise = new Promise<{ data: GetChannelsResponse }>((promiseResolve) => {
+    resolve = promiseResolve
+  })
+  return { promise, resolve }
+}
+
 let client: QueryClient
 beforeEach(() => {
   vi.useFakeTimers()
@@ -128,7 +136,7 @@ describe('channel list query lifecycle', () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue({ data: response() })
     const view = mount()
     await tick()
-    const pending = Promise.withResolvers<{ data: GetChannelsResponse }>()
+    const pending = deferredChannelResponse()
     get.mockReturnValueOnce(pending.promise)
     act(() => {
       void view.result.current.refetch({ cancelRefetch: false })
@@ -223,7 +231,7 @@ describe('channel list query lifecycle', () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue({ data: response() })
     const view = mount({ p: 1 })
     await tick()
-    const oldSearch = Promise.withResolvers<{ data: GetChannelsResponse }>()
+    const oldSearch = deferredChannelResponse()
     get.mockReturnValueOnce(oldSearch.promise)
     view.rerender({ keyword: 'old', p: 1 })
     await tick()
