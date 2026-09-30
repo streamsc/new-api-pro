@@ -212,7 +212,7 @@ jobs:
             Changes:
             - Upgrades the upstream baseline to rc.40, including request policies, task plugins, protocol/media fixes, and billing updates.
             - Preserves Redis Sentinel, audio transcription/translation SSE, channel concurrency limits and sampling, Prometheus metrics, and authenticated HMAC headers.
-            - Propagates client cancellation while waiting for ordinary HTTP and multipart upstream headers, releasing the channel lease without retrying or disabling the channel.
+            - Propagates client cancellation before upstream headers and during response-body reads, releasing the channel lease without retrying or disabling the channel.
             - Retains independent RelayKit validation and Artifactory-compatible multi-architecture GHCR publication gates.
 
             Migration requirements:
@@ -222,6 +222,11 @@ jobs:
             - Realtime, Responses WebSocket, and task-plugin requests are outside the standard Relay concurrency counter.
 
             Review migration requirements in `docs/upgrade-v1.0.0-rc.40-pro.md` before deployment.
+
+            Validation boundaries:
+            - ARM64 candidate built from the release Dockerfile and deployed to new-api-2; normal/streaming Responses, billing counters, and channel concurrency smoke checks passed.
+            - No separate AMD64 environment acceptance was performed; existing automated CI gates remain enabled.
+            - Real-vendor audio and task-plugin execution/settlement, production-scale load, and Artifactory import remain unverified.
 
             Container image: `ghcr.io/streamsc/new-api-pro:${{ github.ref_name }}`
           files: release-assets/*
