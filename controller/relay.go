@@ -243,6 +243,15 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			return
 		}
 
+		// Cancellation can surface while reading the response body, after
+		// Client.Do has returned. It is not a failure of the selected channel.
+		if requestContext.Err() != nil {
+			types.ErrOptionWithSkipRetry()(newAPIError)
+			relayInfo.LastError = newAPIError
+			suppressErrorBody = c.Writer.Written()
+			break
+		}
+
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
 

@@ -25,7 +25,7 @@
 - 渠道表单直接适配 rc.40 编辑器，保留插件多绑定及 Responses WebSocket 设置；复用现有 Form/Input、DataTablePage、ChannelCard 和查询基础设施，不引入旧版编辑器。
 - 后台采样错误沿用 rc.40 的共享 QueryClient，在已有配置时保留页面、清空有效计数并显示一处提示。首屏错误仍走共享错误处理。
 - HMAC 使用鉴权后的 `RelayInfo.UserId/TokenId`，保留来源隔离、缺失身份省略、渠道测试不发送以及非法占位符拒绝行为；多实例必须共享稳定 `CRYPTO_SECRET`。
-- 修复普通 HTTP/multipart 转发等待响应头时的取消传播，入站取消/租约取消能够中断上游等待并释放占位；本地取消标记为不可重试，避免误禁用健康渠道。真实 HTTP 回归先失败后通过。
+- 修复普通 HTTP/multipart 转发等待响应头时的取消传播，入站取消/租约取消能够中断上游等待并释放占位；本地取消标记为不可重试，避免误禁用健康渠道。审阅后补齐响应头之后读取响应体的取消处理：控制器在重试决策及渠道故障处理前终止，保留既有失败退款流程。真实 HTTP 回归覆盖响应头前取消及响应体读取时取消。
 - 音频转录/翻译继续接受 multipart `stream=true`，由 SSE 处理器转发。
 
 **计数边界不扩大：** `/v1/realtime`、新 Responses WebSocket 入口、任务插件（包括接管 Images/Responses 的协议路径）、Midjourney/Suno、渠道测试、模型列表及余额查询不计入标准 Relay 并发。插件 Images 请求可能从普通 Relay 改走任务路径，启用前需要重新评估容量；本次不把任务 ID 生命周期混入 HTTP 租约。
@@ -74,6 +74,7 @@
 ### 最终门禁
 
 - 根模块全量 Go 测试通过；最终取消修复后，`GOWORK=off go test -p 1 ./controller ./relay/channel ./model` 复跑通过，全库 `go vet -p 1 ./...`、`go build -p 1 ./...` 通过。
+- 响应体取消修复后，`GOWORK=off go test -p 1 ./controller ./relay/channel ./relay/channel/openai ./service`、controller vet，以及取消/并发错误契约定向 race 通过。新增真实 Relay 回归验证单次尝试、不记录渠道故障、500 自动禁用规则下渠道仍启用、并发租约归零。
 - 独立 RelayKit test/build/vet、相关 race、三数据库迁移及实际启动矩阵、Redis/Sentinel 故障切换均通过。
 - 前端 **168 个测试文件、2113 项测试全部通过**；typecheck、生产 build、受影响文件 lint/format 通过。测试环境的 `scrollTo` 未实现提示未影响测试结果。
 - 工作流 YAML 解析、`git diff --check` 通过。以上为本地门禁，不代表下列生产及镜像发布门禁已经执行。
