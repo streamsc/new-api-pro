@@ -210,18 +210,16 @@ jobs:
             Downstream release based on upstream `v1.0.0-rc.40`.
 
             Changes:
-            - Completes channel concurrency display for Issue #3: visible pages sample every 60 seconds, with manual refresh, Redis/process scope hints, and stable selection, expansion, and unsaved edits during background refresh.
-            - Returns nullable in-flight counts and preserves channel configuration when count reads fail; the UI shows unknown counts instead of false zeros or stale values. Tag aggregate rows display no combined capacity.
-            - Adds authenticated user/token HMAC placeholders for channel header overrides, enabling stable upstream affinity without exposing raw identity values.
-            - Retains per-channel concurrency limits and sampled in-flight counts for standard Relay requests, with direct HTTP 429 saturation responses and explicit HTTP 503 behavior when the configured Redis concurrency store is unavailable.
-            - Includes upstream channel-test safety controls, gateway field passthrough, user/group-aware parameter overrides, provider compatibility fixes, and atomic quota/recharge settlement.
-            - Retains streaming audio transcription and translation support from QuantumNous/new-api#5394.
-            - Retains Redis Sentinel discovery and automatic failover support.
-            - Repackages the final container root filesystem for Artifactory 7.71.21 compatibility.
-            - Publishes a multi-arch OCI Image Index through GHCR with minimal provenance and without SPDX SBOM attestations.
+            - Upgrades the upstream baseline to rc.40, including request policies, task plugins, protocol/media fixes, and billing updates.
+            - Preserves Redis Sentinel, audio transcription/translation SSE, channel concurrency limits and sampling, Prometheus metrics, and authenticated HMAC headers.
+            - Propagates client cancellation while waiting for ordinary HTTP and multipart upstream headers, releasing the channel lease without retrying or disabling the channel.
+            - Retains independent RelayKit validation and Artifactory-compatible multi-architecture GHCR publication gates.
 
-            Known limitation:
-            - Client cancellation or client-side timeout while waiting for upstream response headers can delay concurrency release until the upstream request ends. This baseline defect remains unfixed; zero counts do not guarantee that all upstream requests have drained. See `docs/DOWNSTREAM_PATCHES.md` for verification details.
+            Migration requirements:
+            - Stop writers and back up both primary and separate log databases before upgrading.
+            - Existing MySQL/PostgreSQL user wallet columns must be BIGINT; rc.40 rejects 32-bit wallet schemas before migration.
+            - Review task-plugin LONGTEXT DDL, options/uniqueness repairs, audit tables, and explicit trust_quota_usd=0 during rollout.
+            - Realtime, Responses WebSocket, and task-plugin requests are outside the standard Relay concurrency counter.
 
             Review migration requirements in `docs/upgrade-v1.0.0-rc.40-pro.md` before deployment.
 
