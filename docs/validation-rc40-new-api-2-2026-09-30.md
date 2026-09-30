@@ -5,7 +5,7 @@
 ## 部署结果
 
 - 原版本：`v1.0.0-rc.25-pro.3`。
-- 当前测试版本：`v1.0.0-rc.40-pro.test.53f32bf3f`，代码提交 `53f32bf3f`，含响应体取消后停止重试修复。
+- 首次升级测试版本：`v1.0.0-rc.40-pro.test.53f32bf3f`，代码提交 `53f32bf3f`，含响应体取消后停止重试修复。当前版本已在下述 16:13 候选镜像验收中更新。
 - 测试镜像：`new-api-pro:rc40-test-53f32bf3f`，保留旧镜像的运行环境，替换本地构建的 Linux arm64 二进制及内嵌前端；不是正式多架构、签名发布镜像。
 - 构建：前端设置上述版本后执行 `bun run build`；后端使用 `CGO_ENABLED=0 GOOS=linux GOARCH=arm64 GOWORK=off GOEXPERIMENT=greenteagc go build -p 2` 并注入版本。
 - 二进制 SHA-256：`68e76cc70a95b4f1f3e7842887bd77b9c1d2a41907faba0952cf3537793fb480`，本机与远端一致。
@@ -104,3 +104,20 @@
 并发分钟采样是列表自动刷新行为，没有单独的“采样设置”表单。本轮验证了展示与手动刷新故障恢复，未通过等待计时独立验证一分钟周期。临时表单未测试服务器保存失败时的草稿保留；该行为沿用此前组件回归测试证据。
 
 本地补充证据（不纳入 Git）：`output/playwright/rc40-acceptance/sampling-failure.txt`、`sampling-recovered.txt`。本轮仅更新验收记录，没有修改业务代码，也未重复运行已通过的 Go/relaykit/前端全量测试。
+
+## 16:13 正式 Dockerfile ARM64 候选镜像
+
+- 当前版本：`v1.0.0-rc.40-pro.candidate.4aac03e5c`，镜像 `new-api-pro:rc40-candidate-4aac03e5c`。
+- 镜像 ID：`sha256:8c9004f50117cfd648c787a53736613cf1c8fbb672b559b3a7fdcdc00370401e`。这是 Docker image ID，不是已发布 OCI 索引 digest。
+- 从 `4aac03e5c` 的 Git archive 创建独立构建目录，仅写入候选 VERSION；未包含工作区未跟踪文件。远端源码逐文件 SHA-256 校验通过。
+- 使用仓库原始 Dockerfile、固定基础镜像 digest、Bun 1.4.0 与 Go 1.26.1，构建 `linux/arm64` 的 `release` 阶段，包括 Debian 运行时及最终 scratch 重打包。前端和后端均在构建器中重新编译，不复用旧运行时镜像。
+- 本机默认镜像代理返回 403，指定代理和直连返回 EOF/超时；远端可以下载固定镜像。最终在远端执行原生 Buildx，构建器限制 1.5 核 CPU / 4 GiB 内存。临时 Buildx 0.29.1 下载自官方 GitHub Release 并核对其发布校验和。未更改仓库 Dockerfile 或基础镜像版本来绕过网络问题。
+- 镜像架构、入口 `/new-api`、工作目录 `/data`、版本标签和 `-version` 输出通过；无网络隔离容器启动、SQLite 初始化及 `/api/status` 检查通过。
+- 切换前停止目标容器并生成新的数据库备份；解析前后 Compose 配置，确认只修改 `new-api-2` 的 image。停写到状态接口恢复约 **2.2 秒**。没有恢复旧数据库快照。
+- 新容器 healthy，外部域名状态接口返回候选版本。原 `new-api` 仍为 healthy，启动时间保持 2026-08-26。
+- `gpt-6-sol` Responses 非流式 / SSE 均 HTTP 200，终态 completed / response.completed，耗时 2.10 / 2.26 秒。用户余额减少、用户已用增加、Token 剩余减少、Token 已用增加均为 **1228 quota**。
+- 两条渠道在途计数归零，配置与并发 scrape_success 均为 1。构建器及其缓存、隔离冒烟容器已清理，磁盘恢复约 11 GiB 可用；两个先前测试/回滚镜像保留。
+
+远端证据与备份位于 `/home/ubuntu/new-api-candidate-4aac03e5c/`（0700）：`build.log`、`source-checksums.txt`、`rollout-result.json`、`smoke-result.json`、`metrics.txt`、`cutover.sql`、`docker-compose.yml.backup`。数据库和 Compose 备份为 0600，不纳入 Git。若仅回退本轮运行时替换，应使用前一个 rc.40 测试镜像和当前数据库；不得用旧快照覆盖本轮之后的真实写入。
+
+本轮完成 ARM64 正式 Dockerfile 构建与测试环境部署，不代表完成 AMD64、Windows、多架构 OCI/provenance、签名、GHCR 发布或 Artifactory 导入。未创建发布标签、推送镜像或升级其他实例。业务代码相对上一个部署无变化，原完整测试证据继续适用；本轮补充构建和运行时冒烟。
