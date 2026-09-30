@@ -58,3 +58,17 @@
 隔离对照容器、MySQL 匿名卷及 internal 网络已删除。对外 `new-api-2` 保留新测试版本。
 
 若现在回滚，先停写并备份升级后的增量，核对升级后是否已有真实业务；不能直接恢复 `cutover.sql` 丢弃这些写入。只有确认增量处理方案后，才恢复同一时间点的数据库/数据目录与旧 Compose 镜像。副本上的恢复演练通过不代表可以忽略切换后的业务增量。
+
+
+## 13:27 完整请求复测
+
+使用 `Go-http-client/1.1`，模型 `gpt-6-sol`，相同现有 Token，未修改渠道配置：
+
+| 请求 | 结果 | 耗时 |
+| --- | --- | --- |
+| Chat Completions 非流式 | HTTP 200，有效 choices | 1.74 秒 |
+| Chat Completions 流式 | HTTP 200，有文本及 `[DONE]`、usage | 1.88 秒 |
+| Responses 非流式 | HTTP 200，completed | 1.52 秒 |
+| Responses 流式 | HTTP 200，response.completed、usage | 1.64 秒 |
+
+四笔成功日志共 1300 quota；用户余额减少、用户已用增加、Token 剩余减少、Token 已用增加均为 1300，与日志一致。两渠道 Redis 并发计数归零，配置/并发采样成功值均为 1；容器 healthy，外部域名状态接口返回正确测试版本。原始结果保存在远端 `full-smoke-retest.json`。本轮未覆盖音频、任务插件或并发压测。
