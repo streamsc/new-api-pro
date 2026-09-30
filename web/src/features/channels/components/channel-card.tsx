@@ -150,7 +150,9 @@ function ChannelCardComponent({
               </div>
               <div className='row-span-2 grid min-w-0 grid-rows-subgrid'>
                 <dt className={labelClass}>{t('In-flight / Limit')}</dt>
-                <dd className='min-w-0 text-sm tabular-nums'>{concurrencyCell}</dd>
+                <dd className='min-w-0 text-sm tabular-nums'>
+                  {concurrencyCell}
+                </dd>
               </div>
             </dl>
           </div>

@@ -442,3 +442,37 @@ it('rejects an unsuccessful setting update so callers cannot proceed as if it sa
   unmount()
   client.clear()
 })
+
+it('keeps a failed channel background refresh on the current page without a duplicate toast', async () => {
+  const navigate = vi.fn()
+  const notify = vi.spyOn(toast, 'error').mockReturnValue('error')
+  const client = createAppQueryClient(navigate)
+  const queryKey = ['channels', 'refresh-regression']
+  client.setQueryData(queryKey, { name: 'retained channel' })
+  const error = new AxiosError(
+    'offline',
+    'ERR_BAD_RESPONSE',
+    undefined,
+    undefined,
+    {
+      status: 500,
+      statusText: 'Internal Server Error',
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+      data: {},
+    }
+  )
+  await expect(
+    client.fetchQuery({
+      queryKey,
+      queryFn: () => Promise.reject(error),
+      retry: false,
+      staleTime: 0,
+      meta: { channelListHandlesBackgroundErrors: true },
+    })
+  ).rejects.toBe(error)
+  expect(client.getQueryData(queryKey)).toEqual({ name: 'retained channel' })
+  expect(notify).not.toHaveBeenCalled()
+  expect(navigate).not.toHaveBeenCalled()
+  client.clear()
+})

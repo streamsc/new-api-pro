@@ -2812,3 +2812,21 @@ test('a New API channel binds upstream task plugins and publishes their models',
   expect(setting).not.toHaveProperty('task_plugin_key')
   expect(payload.models?.split(',').sort()).toEqual(['gpt-5', 'video-b-1'])
 })
+
+test('changing plugin providers retains the edited Relay concurrency limit', async () => {
+  const user = userEvent.setup()
+  render(<ConfigurationHarness />)
+  await user.click(await screen.findByRole('option', { name: /Video A/ }))
+  const limit = screen.getByRole('spinbutton', {
+    name: 'Relay concurrency limit',
+  })
+  expect(limit).toHaveValue(0)
+  fireEvent.change(limit, { target: { value: '8' } })
+  await user.click(screen.getByRole('button', { name: 'Change provider' }))
+  await user.click(
+    screen.getByRole('option', { name: 'Video B Plugin video-b' })
+  )
+  expect(
+    screen.getByRole('spinbutton', { name: 'Relay concurrency limit' })
+  ).toHaveValue(8)
+})

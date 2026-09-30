@@ -2625,10 +2625,22 @@ export function ChannelMutateDrawer({
             <FormItem>
               <FormLabel>{t('Relay concurrency limit')}</FormLabel>
               <FormControl>
-                <Input type='number' min={0} step={1} {...field}
-                  onChange={(event) => field.onChange(event.target.value === '' ? 0 : Number(event.target.value))} />
+                <Input
+                  type='number'
+                  min={0}
+                  step={1}
+                  disabled={sensitiveLocked || isSubmitting}
+                  {...field}
+                  onChange={(event) =>
+                    field.onChange(
+                      event.target.value === '' ? 0 : Number(event.target.value)
+                    )
+                  }
+                />
               </FormControl>
-              <FormDescription>{t('0 means unlimited standard Relay requests')}</FormDescription>
+              <FormDescription>
+                {t('0 means unlimited standard Relay requests')}
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -2858,9 +2870,13 @@ export function ChannelMutateDrawer({
                   {'{client_header:NAME}'}
                 </code>{' '}
                 — {t('Client header value')},{' '}
-                <code className='bg-muted rounded px-1 py-0.5'>{'{context_hmac:user_id}'}</code>{' '}
+                <code className='bg-muted rounded px-1 py-0.5'>
+                  {'{context_hmac:user_id}'}
+                </code>{' '}
                 — {t('Authenticated user HMAC')},{' '}
-                <code className='bg-muted rounded px-1 py-0.5'>{'{context_hmac:token_id}'}</code>{' '}
+                <code className='bg-muted rounded px-1 py-0.5'>
+                  {'{context_hmac:token_id}'}
+                </code>{' '}
                 — {t('Authenticated token HMAC')}
               </FormDescription>
               <FormMessage />

@@ -18,7 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { getGroups as getUserGroups } from '@/features/users/api'
 import { api, type ApiRequestConfig } from '@/lib/api'
-import { requireServerSuccess } from '@/lib/server-error-message'
+import {
+  requireServerSuccess,
+  createServerError,
+} from '@/lib/server-error-message'
 
 import type { InferenceStatus } from './lib/inference-status'
 import type {
@@ -125,7 +128,7 @@ export async function getChannels(
     params,
   })
   if (!res.data.success || !res.data.data) {
-    throw new Error(res.data.message || 'Failed to load channels')
+    throw createServerError(res.data, 'Failed to load channels')
   }
   return res.data
 }
@@ -142,7 +145,7 @@ export async function searchChannels(
     params,
   })
   if (!res.data.success || !res.data.data) {
-    throw new Error(res.data.message || 'Failed to load channels')
+    throw createServerError(res.data, 'Failed to load channels')
   }
   return res.data
 }

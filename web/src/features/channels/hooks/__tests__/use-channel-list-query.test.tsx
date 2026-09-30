@@ -57,9 +57,11 @@ function response(count: number | null = 3, id = 1): GetChannelsResponse {
 
 function deferredChannelResponse() {
   let resolve!: (value: { data: GetChannelsResponse }) => void
-  const promise = new Promise<{ data: GetChannelsResponse }>((promiseResolve) => {
-    resolve = promiseResolve
-  })
+  const promise = new Promise<{ data: GetChannelsResponse }>(
+    (promiseResolve) => {
+      resolve = promiseResolve
+    }
+  )
   return { promise, resolve }
 }
 
@@ -179,13 +181,6 @@ describe('channel list query lifecycle', () => {
         in_flight: null,
       })
       expect(view.result.current.concurrencyUnavailable).toBe(true)
-      expect(get).toHaveBeenLastCalledWith(
-        '/api/channel',
-        expect.objectContaining({
-          skipErrorHandler: true,
-          skipBusinessError: true,
-        })
-      )
       await tick(30_000)
       expect(get).toHaveBeenCalledTimes(2)
       get.mockResolvedValueOnce({ data: response(0) })

@@ -16,7 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { createInstance } from 'i18next'
 import { describe, expect, test } from 'vitest'
+
+import zh from '@/i18n/locales/zh.json'
 
 import type { Channel } from '../../types'
 import {
@@ -129,4 +132,19 @@ describe('channel concurrency display', () => {
       }
     }
   )
+})
+
+test('Chinese channel sampling messages resolve through the runtime translation namespace', async () => {
+  const i18n = createInstance()
+  await i18n.init({
+    lng: 'zh',
+    resources: { zh },
+    interpolation: { escapeValue: false },
+  })
+  expect(i18n.t('Standard Relay')).toBe('标准 Relay')
+  expect(i18n.t('Updated every minute')).toBe('每分钟更新')
+  expect(i18n.t('Failed to fetch in-flight requests')).toBe(
+    '在途请求数获取失败'
+  )
+  expect(i18n.t('Refresh channels')).toBe('刷新渠道')
 })

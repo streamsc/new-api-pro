@@ -1,12 +1,4 @@
 {
-  "Standard Relay": "標準 Relay",
-  "Updated every minute": "毎分更新",
-  "Redis shared": "Redis 共有",
-  "Current process": "現在のプロセス",
-  "Zero does not guarantee all requests have drained.": "ゼロでもすべてのリクエストの終了は保証されません。",
-  "Failed to fetch in-flight requests": "処理中のリクエスト数を取得できませんでした",
-  "Failed to load channels": "チャネルを読み込めませんでした",
-  "Refresh channels": "チャネルを更新",
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -2631,7 +2623,7 @@
     "footer.columns.related.links.oneApi": "1つのAPI",
     "footer.columns.related.title": "関連プロジェクト",
     "footer.defaultCopyright": "すべての権利を留保します。",
-    "footer.new\u0061pi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
+    "footer.newapi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "高度なカスタムチャネルでは、プロトコル変換を行わない /v1/responses ルートにのみ適用されます。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "2025 年 5 月 10 日以降に追加されたチャネルの場合、デプロイ時にモデル名から「.」を削除する必要はありません",
     "For private deployments, format: https://fastgpt.run/api/openapi": "プライベートデプロイメントの場合、形式: https://fastgpt.run/api/openapi",
@@ -6790,6 +6782,14 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Standard Relay": "標準 Relay",
+    "Updated every minute": "毎分更新",
+    "Redis shared": "Redis 共有",
+    "Current process": "現在のプロセス",
+    "Zero does not guarantee all requests have drained.": "ゼロでもすべてのリクエストの終了は保証されません。",
+    "Failed to fetch in-flight requests": "処理中のリクエスト数を取得できませんでした",
+    "Failed to load channels": "チャネルを読み込めませんでした",
+    "Refresh channels": "チャネルを更新"
   }
 }
