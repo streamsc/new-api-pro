@@ -70,7 +70,9 @@ GOWORK=off go vet ./...
 
 `v1.0.0-rc.25-pro.5` 已从 `abfde8c0b5afd88ea784166128f248b5d1fe30fe` 发布：[跨平台 Release](https://github.com/streamsc/new-api-pro/actions/runs/34079619869) 与 [GHCR](https://github.com/streamsc/new-api-pro/actions/runs/34079619819) 均通过。四份二进制的发布校验和与 GitHub 资产摘要一致；容器通过 OCI/provenance、运行配置和 amd64/arm64 冒烟检查，两个平台及索引的 Cosign 签名完成。远端 OCI 索引摘要为 `sha256:a22b1e4a92da2d61ec00d4256fe36d4484107a69bbbc4ddba478379508612082`。本次发布未部署到生产，也未执行 Artifactory 导入。
 
-### Existing cancellation limitation
+### Historical rc.25 cancellation limitation
+
+以下是 rc.25-pro.5 当时的验证记录。rc.40 升级分支已修复普通 HTTP/multipart 请求的上下文传播及响应体取消后重试，当前结果见 [rc.40 升级说明](upgrade-v1.0.0-rc.40-pro.md) 和 [测试环境验收记录](validation-rc40-new-api-2-2026-09-30.md)。
 
 原始基线 `32507fc4` 与补丁版本均实测复现：普通请求在上游尚未返回响应头时，客户端主动取消或客户端超时退出后，预留仍保留，直到上游请求完成才释放。`relay/channel/api_request.go` 的上游请求使用 `http.NewRequest`，未绑定入站请求上下文；本次未修改该路径。已开始输出的流式请求断开后释放正常。
 
