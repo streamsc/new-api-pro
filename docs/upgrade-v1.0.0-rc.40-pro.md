@@ -2,6 +2,17 @@
 
 日期：2026-09-30（Asia/Shanghai）。依据：[2026-09-22 差异追踪](diff-trace/2026-09-22-new-api-v1.0.0-rc.40-new-api-pro-v1.0.0-rc.25.md)。
 
+## 发布状态（2026-09-30 16:36）
+
+用户授权跳过单独 AMD64 环境验收并执行发布。已发布附注标签 `v1.0.0-rc.40-pro.1`，提交 `cc19d18edec5b7561739a763713bba236c846a78`；沿用 rc 系列的 GitHub prerelease 标记。下文各阶段“未发布/尚未执行”的描述为当时记录，以本节发布状态为准。
+
+- [GitHub Release](https://github.com/streamsc/new-api-pro/releases/tag/v1.0.0-rc.40-pro.1)：Linux amd64/arm64、macOS、Windows 四份二进制和校验和已上传，四份校验和与 GitHub 资产 digest 一致。
+- [跨平台发布流水线](https://github.com/streamsc/new-api-pro/actions/runs/36689179022) 与 [镜像流水线](https://github.com/streamsc/new-api-pro/actions/runs/36689178927) 均成功，发布前 Go/独立 RelayKit 测试通过。
+- 镜像：`ghcr.io/streamsc/new-api-pro:v1.0.0-rc.40-pro.1`；OCI 索引 digest：`sha256:06e2443c0d8a36d73bdd6f9c733701c4674226a3b7729f7abd1b82d97ef97a0e`。
+- amd64 manifest：`sha256:f5652d7fdb6f2968b3067ca55f8e6784f21ea2f53492e1fd10feb0cc805a1f72`；arm64 manifest：`sha256:2dc8947eb0a3e4b5e8e0b94cd253712eb5955dc3c7d799fb48d5f84bf07b3157`。
+- 现有 CI 的 OCI/provenance、运行配置及两个架构冒烟步骤均通过，平台镜像和 OCI 索引的 Cosign 签名步骤成功。没有单独搭建 AMD64 验收环境；CI 冒烟不替代生产负载验收。
+- 本次发布没有替换测试容器；`new-api-2` 仍运行 `v1.0.0-rc.40-pro.candidate.4aac03e5c`。Artifactory 导入、真实供应商音频/任务插件结算及生产规模验证仍未完成。
+
 ## 范围与审阅入口
 
 - 独立分支：`upgrade/v1.0.0-rc.40`，从官方 rc.40 `0aec08fee811ec6136828fda790551b49e410301` 线性重放下游补丁；不改写旧发布分支或标签。
