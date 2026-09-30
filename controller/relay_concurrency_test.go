@@ -2,7 +2,10 @@ package controller
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
@@ -38,6 +41,10 @@ func TestChannelConcurrencyErrorContract(t *testing.T) {
 			assert.Equal(t, test.errorCode, relayErr.GetErrorCode())
 			assert.True(t, types.IsSkipRetryError(relayErr))
 			assert.False(t, types.IsRecordErrorLog(relayErr))
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+			assert.Equal(t, "stop", service.DecideRelayRetry(ctx, relayErr, 3).Action)
+			assert.False(t, service.ShouldDisableChannel(relayErr))
 		})
 	}
 }

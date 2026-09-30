@@ -2,15 +2,20 @@ package channel
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	common2 "github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -412,4 +417,78 @@ func TestProcessHeaderOverride_ContextHMACPreservesExistingValues(t *testing.T) 
 	require.Equal(t, "Bearer channel-secret", headers["authorization"])
 	require.Equal(t, "client-value", headers["x-client"])
 	require.Equal(t, "static-value", headers["x-static"])
+}
+
+type cancellationAdaptor struct {
+	Adaptor
+	url string
+}
+
+func (a cancellationAdaptor) GetRequestURL(*relaycommon.RelayInfo) (string, error) {
+	return a.url, nil
+}
+
+func (cancellationAdaptor) SetupRequestHeader(*gin.Context, *http.Header, *relaycommon.RelayInfo) error {
+	return nil
+}
+
+func TestRelayCancellationBeforeHeadersReleasesConcurrency(t *testing.T) {
+	service.InitHttpClient()
+	previousRedis := common2.RedisEnabled
+	common2.RedisEnabled = false
+	t.Cleanup(func() { common2.RedisEnabled = previousRedis })
+	for _, form := range []bool{false, true} {
+		t.Run(fmt.Sprintf("multipart=%v", form), func(t *testing.T) {
+			started, unblock := make(chan struct{}), make(chan struct{})
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = io.Copy(io.Discard, r.Body)
+				close(started)
+				select {
+				case <-r.Context().Done():
+				case <-unblock:
+				}
+			}))
+			defer upstream.Close()
+			defer close(unblock)
+			parent, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			lease, _, err := service.AcquireChannelConcurrency(parent, 94040, 1, "cancel-before-headers")
+			require.NoError(t, err)
+			defer lease.Release()
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/audio/transcriptions", nil).WithContext(lease.Context())
+			info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+			result := make(chan error, 1)
+			go func() {
+				request := DoApiRequest
+				if form {
+					request = DoFormRequest
+				}
+				resp, err := request(cancellationAdaptor{url: upstream.URL}, c, info, strings.NewReader("payload"))
+				if resp != nil {
+					_ = resp.Body.Close()
+				}
+				lease.Release()
+				result <- err
+			}()
+			select {
+			case <-started:
+			case <-time.After(5 * time.Second):
+				t.Fatal("upstream was not reached")
+			}
+			cancel()
+			select {
+			case err := <-result:
+				require.Error(t, err)
+				var apiErr *types.NewAPIError
+				require.True(t, errors.As(err, &apiErr))
+				assert.True(t, types.IsSkipRetryError(apiErr), "canceled requests must not retry or disable healthy channels")
+			case <-time.After(2 * time.Second):
+				t.Fatal("client cancellation did not interrupt the upstream header wait")
+			}
+			counts, err := service.GetChannelConcurrencyCounts(context.Background(), []int{94040})
+			require.NoError(t, err)
+			assert.Zero(t, counts[94040])
+		})
+	}
 }

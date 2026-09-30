@@ -1,8 +1,12 @@
 package model
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -164,5 +168,58 @@ func TestTaskPluginOrderSQLQuotesMySQLKeyColumn(t *testing.T) {
 	for _, sql := range sqls {
 		assert.Contains(t, sql, "`key`")
 		assert.NotRegexp(t, `(?i)ORDER BY[[:space:]]+key([[:space:],]|$)`, sql)
+	}
+}
+
+// rc.25 has no plugin table. Also cover an intermediate plugin installation
+// with TEXT payload columns so operators can replay staged upgrades safely.
+func TestTaskPluginPayloadMigrationDatabaseMatrix(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			dsn := os.Getenv("TEST_" + strings.ToUpper(dialect) + "_DSN")
+			if dialect == "sqlite" {
+				dsn = "local"
+				previous := common.SQLitePath
+				common.SQLitePath = filepath.Join(t.TempDir(), "plugins.db")
+				t.Cleanup(func() { common.SQLitePath = previous })
+			}
+			if dsn == "" {
+				t.Skip("test database DSN is not configured")
+			}
+			t.Setenv("PLUGIN_MIGRATION_DSN", dsn)
+			db, _, err := chooseDB("PLUGIN_MIGRATION_DSN", false)
+			require.NoError(t, err)
+			sqlDB, err := db.DB()
+			require.NoError(t, err)
+			defer sqlDB.Close()
+			const table = "rc40_plugin_payload_test"
+			defer db.Migrator().DropTable(table)
+			type payloadV1 struct {
+				Id     int64  `gorm:"primaryKey"`
+				Source string `gorm:"type:text;not null"`
+				Icon   string `gorm:"type:text"`
+			}
+			require.NoError(t, db.Table(table).AutoMigrate(&payloadV1{}))
+			require.NoError(t, db.Table(table).Create(&payloadV1{Id: 1, Source: "existing-source", Icon: "existing-icon"}).Error)
+			// Use the production field definitions without creating unrelated
+			// plugin indexes in a database shared by the other migration tests.
+			type payloadV2 struct {
+				Id     int64    `gorm:"primaryKey"`
+				Source LongText `gorm:"not null"`
+				Icon   LongText
+			}
+			require.NoError(t, db.Table(table).AutoMigrate(&payloadV2{}))
+			var saved payloadV2
+			require.NoError(t, db.Table(table).First(&saved, 1).Error)
+			assert.Equal(t, LongText("existing-source"), saved.Source)
+			assert.Equal(t, LongText("existing-icon"), saved.Icon)
+			large := LongText(strings.Repeat("x", 8*1024*1024))
+			require.NoError(t, db.Table(table).Where("id = ?", 1).Update("source", large).Error)
+			require.NoError(t, db.Table(table).First(&saved, 1).Error)
+			assert.Equal(t, large, saved.Source)
+			recorder := &migrationSQLRecorder{}
+			require.NoError(t, db.Session(&gorm.Session{Logger: recorder}).Table(table).AutoMigrate(&payloadV2{}))
+			assert.Empty(t, recorder.schemaMutations(), "unchanged plugin columns must not trigger repeated DDL")
+		})
 	}
 }
