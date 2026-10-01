@@ -11,7 +11,7 @@
 - 镜像：`ghcr.io/streamsc/new-api-pro:v1.0.0-rc.40-pro.1`；OCI 索引 digest：`sha256:06e2443c0d8a36d73bdd6f9c733701c4674226a3b7729f7abd1b82d97ef97a0e`。
 - amd64 manifest：`sha256:f5652d7fdb6f2968b3067ca55f8e6784f21ea2f53492e1fd10feb0cc805a1f72`；arm64 manifest：`sha256:2dc8947eb0a3e4b5e8e0b94cd253712eb5955dc3c7d799fb48d5f84bf07b3157`。
 - 现有 CI 的 OCI/provenance、运行配置及两个架构冒烟步骤均通过，平台镜像和 OCI 索引的 Cosign 签名步骤成功。没有单独搭建 AMD64 验收环境；CI 冒烟不替代生产负载验收。
-- 本次发布没有替换测试容器；`new-api-2` 仍运行 `v1.0.0-rc.40-pro.candidate.4aac03e5c`。Artifactory 导入、真实供应商音频/任务插件结算及生产规模验证仍未完成。
+- 发布后用户另行授权部署，16:59 已将 `new-api-2` 替换为固定发布 digest 的 `v1.0.0-rc.40-pro.1`，健康、真实 Responses 普通/SSE 和账务检查通过，详见测试环境验收记录。Artifactory 导入、真实供应商音频/任务插件结算及生产规模验证仍未完成。
 
 ## 范围与审阅入口
 

@@ -2,6 +2,8 @@
 
 日期：2026-09-30（Asia/Shanghai）。用户授权在 `ubuntu@129.146.74.208` 的 `new-api-2` 测试，外部地址为 <https://mapix.aiinall6.top/>。
 
+当前部署：**`v1.0.0-rc.40-pro.1` 已发布镜像**，于 2026-09-30 16:59 替换候选镜像，详见末节。下文按阶段保留历史版本和验收记录。
+
 ## 部署结果
 
 - 原版本：`v1.0.0-rc.25-pro.3`。
@@ -121,3 +123,18 @@
 远端证据与备份位于 `/home/ubuntu/new-api-candidate-4aac03e5c/`（0700）：`build.log`、`source-checksums.txt`、`rollout-result.json`、`smoke-result.json`、`metrics.txt`、`cutover.sql`、`docker-compose.yml.backup`。数据库和 Compose 备份为 0600，不纳入 Git。若仅回退本轮运行时替换，应使用前一个 rc.40 测试镜像和当前数据库；不得用旧快照覆盖本轮之后的真实写入。
 
 本轮完成 ARM64 正式 Dockerfile 构建与测试环境部署，不代表完成 AMD64、Windows、多架构 OCI/provenance、签名、GHCR 发布或 Artifactory 导入。未创建发布标签、推送镜像或升级其他实例。业务代码相对上一个部署无变化，原完整测试证据继续适用；本轮补充构建和运行时冒烟。
+
+## 16:59 已发布镜像替换部署
+
+用户明确授权替换 `new-api-2`。从 GHCR 拉取 `v1.0.0-rc.40-pro.1`，拉取 digest 与发布流水线记录一致，Compose 固定为：
+
+`ghcr.io/streamsc/new-api-pro:v1.0.0-rc.40-pro.1@sha256:06e2443c0d8a36d73bdd6f9c733701c4674226a3b7729f7abd1b82d97ef97a0e`
+
+- ARM64 镜像 ID：`sha256:27d98033e61acfefda25ba4446fa1e244093bfe9e85b7b991abebb2707f94c32`；版本标签与 `-version` 输出正确，revision 为发布提交 `cc19d18edec5b7561739a763713bba236c846a78`。
+- 无网络隔离容器启动检查通过。停写并备份当前数据库后，仅修改 Compose 中 `new-api-2` 的 image；解析配置比较通过。停写到状态接口恢复约 **2.0 秒**。
+- `new-api-2` healthy，外部域名确认返回正式版本；原 `new-api` 仍 healthy，启动时间保持 2026-08-26。
+- Responses 非流式和 SSE 均 HTTP 200，终态 completed / response.completed，耗时 2.32 / 2.04 秒。四项用户/Token 账务变化一致，均为 **1228 quota**。
+- 切换后的指标检查：两条渠道在途数为 0，配置与并发采样成功值为 1。临时冒烟容器已删除，候选镜像保留用于运行时回退。
+- 本机首次域名请求遇 DNS 解析失败，重试成功；首次 SSH 请求测试连接中断，没有结果文件，后续重新执行测试成功。该连接异常未被算作应用验收通过证据。
+
+备份与结果目录：`/home/ubuntu/new-api-release-rc40-pro1/`（0700），包含 `cutover.sql`、`docker-compose.yml.backup`（均 0600）、`rollout-result.json`、`smoke-result.json`、`smoke.log`、`metrics.txt`。本轮未恢复数据库快照；后续回退应保留正式版本运行后的账务增量。
