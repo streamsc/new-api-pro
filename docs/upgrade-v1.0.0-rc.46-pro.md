@@ -109,3 +109,19 @@
 仍未覆盖：真实音频 SSE、图片生成、异步任务轮询结算、长时间负载、生产数据库上的 rc.46 切换、其余 UI 路径。现有渠道没有音频/任务模型，未擅自增加供应商配置或额外发起图片付费请求。
 
 截图、脱敏浏览器快照、权限响应、轮询时间戳、供应商结果和可复跑脚本位于 `output/playwright/rc46-acceptance/`。本地浏览器及临时容器均已关闭；原有文件与上游工作树保持不变。
+
+## 本地发布候选与重点复核（2026-10-23）
+
+候选版本为 `v1.0.0-rc.46-pro.1`。只读执行 `git ls-remote origin refs/tags/v1.0.0-rc.46-pro.1` 成功且无匹配；这是检查时的状态，不保留标签名。本轮不创建标签、不推送、不发布、不部署，源文件 `VERSION` 保持原状。发布说明草稿位于 `output/upgrade-rc46-20261023/release-notes.md`；正式 Release 模板已突出旧面板令牌立即失效、使用最小权限 `nap_` 令牌替换管理脚本凭据的要求。
+
+重点复核覆盖认证分类/旧令牌拒绝/scope 与敏感操作证明绑定、标准 Relay 取消与租约释放、结算后退款保护、Redis/Sentinel 并发失败处理、HMAC 身份来源及发布工作流。此次重点范围内未发现新的阻断性业务缺陷，不等同全代码或 OWASP 合规审计。已结算请求即使之后因租约丢失进入失败退款入口，BillingSession 的 settled/fundingSettled 状态也阻止退回已提交资金；取消不保证免计费。
+
+发现并修正发布门禁缺口：Docker 双架构启动原先仅检查 `/api/status.success`，现同时要求 `.data.version` 等于发布标签；更新手动发布示例至 rc.46。二进制与 Docker 工作流独立，Docker 在运行检查前已推送镜像，不能将镜像标签存在或二进制 Release 成功视为整个发布成功。采用前须确认两条流程成功、OCI/provenance 校验及签名验证完成。
+
+本轮验证：
+
+- `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -shellcheck= -pyflakes= .github/workflows/release.yml .github/workflows/docker-build.yml` 通过；未运行 ShellCheck/Pyflakes，也未触发 GitHub 工作流。
+- 将新 jq 断言用于此前保存的 amd64/arm64 实际状态响应：正确版本通过；错误版本及 success=false 均拒绝。未重建镜像，业务代码未改动。
+- `go test ./middleware ./service ./controller ./relay -run 'Test(UserAuthRejectsStoredLegacyToken|DashboardAccessTokenClassification|.*ChannelConcurrency.*|.*BillingSession.*|.*Cancellation.*)' -count=1` 成功；middleware/service/controller 有匹配测试，relay 无匹配测试。真实 Redis/Sentinel 专用集成测试本轮未配置环境，依据前述已完成的真实实例验证，不重复声称重跑。
+
+正式 registry/OCI 索引/签名及跨平台 Release 等未完成门禁仍按前述记录保留，不能据本地候选宣称生产发布完成。

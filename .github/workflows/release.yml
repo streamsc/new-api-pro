@@ -212,8 +212,14 @@ jobs:
             Includes Go 1.26.10, scoped access tokens, task retry billing and redirect protection,
             moejs/tokenkit, and the retained Pro Sentinel, audio SSE, concurrency and HMAC features.
 
+            Breaking: legacy dashboard personal access tokens stop working immediately.
+            Sign in with a browser session and replace management-script credentials with
+            least-privilege `nap_` scoped tokens. Model API keys are separate and unaffected.
+
             Review `docs/upgrade-v1.0.0-rc.46-pro.md` for breaking changes, migration steps,
             actual validation results and outstanding release gates before deployment.
+            Binary and container publishing are independent workflows; confirm both succeed
+            and verify the container signatures before adopting this release.
 
             Container image: `ghcr.io/streamsc/new-api-pro:${{ github.ref_name }}`
           files: release-assets/*
