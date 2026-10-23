@@ -76,9 +76,16 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	//originalModel := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
 
 	var (
-		newAPIError *types.NewAPIError
-		ws          *websocket.Conn
+		newAPIError       *types.NewAPIError
+		ws                *websocket.Conn
+		activeConcurrency *service.ChannelConcurrencyLease
+		suppressErrorBody bool
 	)
+	defer func() {
+		if activeConcurrency != nil {
+			activeConcurrency.Release()
+		}
+	}()
 
 	if relayFormat == types.RelayFormatOpenAIRealtime {
 		var err error
@@ -95,6 +102,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			service.RecordRequestPolicyTermination(c, newAPIError)
 			logger.LogError(c, common.LogText("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
+			if suppressErrorBody {
+				return
+			}
 			upstreamURLs := common.UpstreamAddresses(c)
 			if relayFormat != types.RelayFormatOpenAIRealtime && c.Writer.Written() &&
 				strings.HasPrefix(c.Writer.Header().Get("Content-Type"), "text/event-stream") {
@@ -173,6 +183,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
+	requestContext := c.Request.Context()
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
 		relayInfo.StreamStatus = nil
@@ -202,6 +213,24 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
+		if relayFormat != types.RelayFormatOpenAIRealtime {
+			channelSetting, _ := common.GetContextKeyType[dto.ChannelSettings](c, constant.ContextKeyChannelSetting)
+			member := fmt.Sprintf("%s:%d", requestId, retryParam.GetRetry())
+			activeConcurrency, _, err = service.AcquireChannelConcurrency(
+				requestContext,
+				channel.Id,
+				channelSetting.MaxConcurrency,
+				member,
+			)
+			if err != nil {
+				if !errors.Is(err, service.ErrChannelConcurrencyLimit) {
+					logger.LogError(c, fmt.Sprintf("channel concurrency acquisition failed: channel_id=%d error=%v", channel.Id, err))
+				}
+				newAPIError = channelConcurrencyError(err)
+				break
+			}
+			c.Request = c.Request.WithContext(activeConcurrency.Context())
+		}
 
 		switch relayFormat {
 		case types.RelayFormatOpenAIRealtime:
@@ -214,10 +243,31 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			newAPIError = relayHandler(c, relayInfo)
 		}
 
+		if activeConcurrency != nil {
+			leaseLost := activeConcurrency.Lost()
+			activeConcurrency.Release()
+			activeConcurrency = nil
+			c.Request = c.Request.WithContext(requestContext)
+			if leaseLost {
+				newAPIError = channelConcurrencyError(service.ErrChannelConcurrencyStore)
+				suppressErrorBody = c.Writer.Written()
+				break
+			}
+		}
+
 		if newAPIError == nil {
 			service.MarkRequestPolicySuccess(c, relayInfo.StreamStatus)
 			relayInfo.LastError = nil
 			return
+		}
+
+		// Cancellation can surface while reading the response body, after
+		// Client.Do has returned. It is not a failure of the selected channel.
+		if requestContext.Err() != nil {
+			types.ErrOptionWithSkipRetry()(newAPIError)
+			relayInfo.LastError = newAPIError
+			suppressErrorBody = c.Writer.Written()
+			break
 		}
 
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
@@ -287,6 +337,24 @@ func CountClaudeTokens(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"input_tokens": inputTokens})
+}
+
+func channelConcurrencyError(err error) *types.NewAPIError {
+	statusCode := http.StatusServiceUnavailable
+	errorCode := types.ErrorCodeConcurrencyStore
+	message := "channel concurrency service unavailable"
+	if errors.Is(err, service.ErrChannelConcurrencyLimit) {
+		statusCode = http.StatusTooManyRequests
+		errorCode = types.ErrorCodeConcurrencyLimit
+		message = "channel concurrency limit exceeded"
+	}
+	return types.NewErrorWithStatusCode(
+		errors.New(message),
+		errorCode,
+		statusCode,
+		types.ErrOptionWithSkipRetry(),
+		types.ErrOptionWithNoRecordErrorLog(),
+	)
 }
 
 var upgrader = websocket.Upgrader{

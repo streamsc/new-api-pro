@@ -73,7 +73,7 @@ beforeEach(() => {
     .auth.setUser({ ...profile, permissions: { sidebar_settings: false } })
   vi.spyOn(api, 'get').mockImplementation(async (url) => {
     if (url === '/api/user/access_tokens') {
-      return { data: { success: true, data: { items: [], legacy: null } } }
+      return { data: { success: true, data: { items: [] } } }
     }
     if (url === '/api/user/access_tokens/catalog') {
       return {

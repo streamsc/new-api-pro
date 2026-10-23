@@ -18,7 +18,7 @@ const (
 	// accessTokenRuleAny accepts every valid scoped token; the handler applies
 	// its own checks.
 	accessTokenRuleAny
-	// accessTokenRuleSession rejects every access token, legacy ones included.
+	// accessTokenRuleSession requires a browser session.
 	accessTokenRuleSession
 )
 
@@ -73,7 +73,6 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	"POST /api/user/access_tokens":                 accessTokenSessionRule,
 	"PATCH /api/user/access_tokens/:id":            accessTokenSessionRule,
 	"DELETE /api/user/access_tokens/:id":           accessTokenSessionRule,
-	"DELETE /api/user/access_tokens/legacy":        accessTokenSessionRule,
 	"GET /api/user/passkey":                        accessTokenScopeRule("account_security:read"),
 	"POST /api/user/passkey/register/begin":        accessTokenScopeRule("account_security:write"),
 	"POST /api/user/passkey/register/finish":       accessTokenScopeRule("account_security:write"),

@@ -1,4 +1,5 @@
 name: Release (Linux, macOS, Windows)
+
 permissions:
   contents: write
 
@@ -14,8 +15,26 @@ on:
       - '!*-alpha*'
 
 jobs:
+  verify:
+    name: Verify release source
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+      - name: Prepare embedded frontend placeholder
+        run: |
+          mkdir -p web/dist
+          printf '<!doctype html>' > web/dist/index.html
+      - name: Run Go tests
+        run: make test
+
   linux:
     name: Linux Release
+    needs: verify
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -27,10 +46,11 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
             VERSION=${GITHUB_REF#refs/tags/}
           else
-            VERSION=$(git describe --tags --match 'v[0-9]*')
+            VERSION=preflight-${GITHUB_SHA:0:12}
           fi
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: '1.4.0'
       - name: Build Frontend
@@ -40,7 +60,6 @@ jobs:
           cd web
           bun install --frozen-lockfile
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
-          cd ..
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
@@ -54,21 +73,23 @@ jobs:
           sudo apt-get update
           DEBIAN_FRONTEND=noninteractive sudo apt-get install -y gcc-aarch64-linux-gnu
           CC=aarch64-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -pgo="$(go list -m -f '{{.Dir}}' github.com/Calcium-Ion/moejs)/default.pgo" -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$VERSION' -extldflags '-static'" -o new-api-arm64-$VERSION
+      - name: Verify Backend version
+        run: test "$(./new-api-$VERSION -version)" = "$VERSION"
       - name: Generate checksums
         run: sha256sum new-api-* > checksums-linux.txt
-
-      - name: Release
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Upload Linux release artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          files: |
+          name: release-linux
+          path: |
             new-api-*
             checksums-linux.txt
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          if-no-files-found: error
+          retention-days: 7
 
   macos:
     name: macOS Release
+    needs: verify
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -80,10 +101,11 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
             VERSION=${GITHUB_REF#refs/tags/}
           else
-            VERSION=$(git describe --tags --match 'v[0-9]*')
+            VERSION=preflight-${GITHUB_SHA:0:12}
           fi
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: '1.4.0'
       - name: Build Frontend
@@ -94,7 +116,6 @@ jobs:
           cd web
           bun install --frozen-lockfile
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
-          cd ..
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
@@ -103,21 +124,23 @@ jobs:
         run: |
           go mod download
           go build -pgo="$(go list -m -f '{{.Dir}}' github.com/Calcium-Ion/moejs)/default.pgo" -ldflags "-X 'github.com/QuantumNous/new-api/common.Version=$VERSION'" -o new-api-macos-$VERSION
+      - name: Verify Backend version
+        run: test "$(./new-api-macos-$VERSION -version)" = "$VERSION"
       - name: Generate checksums
         run: shasum -a 256 new-api-macos-* > checksums-macos.txt
-
-      - name: Release
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Upload macOS release artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          files: |
+          name: release-macos
+          path: |
             new-api-macos-*
             checksums-macos.txt
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          if-no-files-found: error
+          retention-days: 7
 
   windows:
     name: Windows Release
+    needs: verify
     runs-on: windows-latest
     defaults:
       run:
@@ -132,10 +155,11 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
             VERSION=${GITHUB_REF#refs/tags/}
           else
-            VERSION=$(git describe --tags --match 'v[0-9]*')
+            VERSION=preflight-${GITHUB_SHA:0:12}
           fi
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: '1.4.0'
       - name: Build Frontend
@@ -145,7 +169,6 @@ jobs:
           cd web
           bun install --frozen-lockfile
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
-          cd ..
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
@@ -154,15 +177,45 @@ jobs:
         run: |
           go mod download
           go build -pgo="$(go list -m -f '{{.Dir}}' github.com/Calcium-Ion/moejs)/default.pgo" -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$VERSION'" -o new-api-$VERSION.exe
+      - name: Verify Backend version
+        run: test "$(./new-api-$VERSION.exe -version | tr -d '\r')" = "$VERSION"
       - name: Generate checksums
         run: sha256sum new-api-*.exe > checksums-windows.txt
-
-      - name: Release
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Upload Windows release artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          files: |
+          name: release-windows
+          path: |
             new-api-*.exe
             checksums-windows.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  publish-release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [linux, macos, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Publish prerelease
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
+        with:
+          prerelease: true
+          body: |
+            Downstream release based on upstream `v1.0.0-rc.46`.
+
+            Includes Go 1.26.10, scoped access tokens, task retry billing and redirect protection,
+            moejs/tokenkit, and the retained Pro Sentinel, audio SSE, concurrency and HMAC features.
+
+            Review `docs/upgrade-v1.0.0-rc.46-pro.md` for breaking changes, migration steps,
+            actual validation results and outstanding release gates before deployment.
+
+            Container image: `ghcr.io/streamsc/new-api-pro:${{ github.ref_name }}`
+          files: release-assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

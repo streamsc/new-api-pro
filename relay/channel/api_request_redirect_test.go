@@ -46,13 +46,14 @@ func TestDoRequestReturnsUpstreamRedirectWithoutFollowing(t *testing.T) {
 			var sourceRequests atomic.Int32
 			type sourceResult struct {
 				body []byte
+				hmac string
 				err  error
 			}
 			sourceResultCh := make(chan sourceResult, 1)
 			source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				sourceRequests.Add(1)
 				body, err := io.ReadAll(r.Body)
-				sourceResultCh <- sourceResult{body: body, err: err}
+				sourceResultCh <- sourceResult{body: body, hmac: r.Header.Get("X-Context-HMAC"), err: err}
 				w.Header().Set("Location", target.URL+"/redirect-target")
 				w.WriteHeader(statusCode)
 				_, _ = io.WriteString(w, responseBody)
@@ -65,7 +66,11 @@ func TestDoRequestReturnsUpstreamRedirectWithoutFollowing(t *testing.T) {
 
 			req, err := http.NewRequest(http.MethodPost, source.URL, bytes.NewReader([]byte("request body")))
 			require.NoError(t, err)
-			info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+			info := &relaycommon.RelayInfo{UserId: 42, ChannelMeta: &relaycommon.ChannelMeta{}}
+			hmac, include, err := applyHeaderOverridePlaceholders("{context_hmac:user_id}", ctx, info)
+			require.NoError(t, err)
+			require.True(t, include)
+			req.Header.Set("X-Context-HMAC", hmac)
 
 			resp, err := doRequest(ctx, req, info)
 			require.NoError(t, err)
@@ -75,6 +80,7 @@ func TestDoRequestReturnsUpstreamRedirectWithoutFollowing(t *testing.T) {
 			gotSource := <-sourceResultCh
 			require.NoError(t, gotSource.err)
 
+			assert.Equal(t, hmac, gotSource.hmac)
 			assert.Equal(t, statusCode, resp.StatusCode)
 			assert.Equal(t, target.URL+"/redirect-target", resp.Header.Get("Location"))
 			assert.Equal(t, responseBody, string(body))

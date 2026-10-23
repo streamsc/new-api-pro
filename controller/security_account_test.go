@@ -155,9 +155,7 @@ func TestSecurityAccountDeletionAcceptsEitherFactorAndRevokesSessions(t *testing
 			count, err := model.CountActiveUserSessions(user.Id, time.Now().Unix())
 			require.NoError(t, err)
 			assert.Zero(t, count)
-			tokenUser, err := model.ValidateAccessToken("account-delete-access-token")
-			require.NoError(t, err)
-			assert.Nil(t, tokenUser)
+			assert.Equal(t, "account-delete-access-token", deleted.GetAccessToken(), "inert legacy storage is preserved")
 			var audit model.AuditLog
 			require.NoError(t, model.LOG_DB.Where("action = ?", "user.account_delete").Last(&audit).Error)
 			assert.True(t, audit.Success)

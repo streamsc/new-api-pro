@@ -2830,7 +2830,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Related Projects",
     "footer.defaultCopyright": "All rights reserved.",
-    "footer.new\u0061pi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
+    "footer.newapi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.",
     "GitHub ID is empty!": "GitHub ID is empty!",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment",
@@ -7336,6 +7336,19 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "In-flight / Limit": "In-flight / Limit",
+    "Relay concurrency limit": "Relay concurrency limit",
+    "0 means unlimited standard Relay requests": "0 means unlimited standard Relay requests",
+    "Authenticated token HMAC": "Authenticated token HMAC",
+    "Authenticated user HMAC": "Authenticated user HMAC",
+    "Standard Relay": "Standard Relay",
+    "Updated every minute": "Updated every minute",
+    "Redis shared": "Redis shared",
+    "Current process": "Current process",
+    "Zero does not guarantee all requests have drained.": "Zero does not guarantee all requests have drained.",
+    "Failed to fetch in-flight requests": "Failed to fetch in-flight requests",
+    "Failed to load channels": "Failed to load channels",
+    "Refresh channels": "Refresh channels"
   }
 }

@@ -654,6 +654,7 @@ export function aggregateChannelsByTag(
         group: '',
         used_quota: 0,
         response_time: 0,
+        in_flight: null,
         priority: -1 as unknown as number | null,
         weight: -1 as unknown as number | null,
         balance: 0,
@@ -720,6 +721,21 @@ export function aggregateChannelsByTag(
   }
 
   return result
+}
+
+export function getChannelConcurrency(channel: Channel | TagRow): {
+  inFlight: number | null
+  maximum: number
+} | null {
+  if (isTagAggregateRow(channel)) {
+    return null
+  }
+  const maximum = parseChannelSettings(channel.setting).max_concurrency
+  return {
+    inFlight: channel.in_flight ?? null,
+    maximum:
+      Number.isInteger(maximum) && Number(maximum) > 0 ? Number(maximum) : 0,
+  }
 }
 
 // ============================================================================

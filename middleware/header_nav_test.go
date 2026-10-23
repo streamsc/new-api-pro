@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -43,7 +42,7 @@ func performHeaderNavRequest(t *testing.T, handler gin.HandlerFunc, authenticate
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.GET("/api/test", handler, func(c *gin.Context) {
+	router.GET("/api/pricing", handler, func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": true})
 	})
 
@@ -52,15 +51,14 @@ func performHeaderNavRequest(t *testing.T, handler gin.HandlerFunc, authenticate
 		previousDB, previousRedis := model.DB, common.RedisEnabled
 		db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 		require.NoError(t, err)
-		require.NoError(t, db.AutoMigrate(&model.User{}, &model.Option{}))
+		require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserAccessToken{}))
 		model.DB = db
 		common.RedisEnabled = false
-		require.NoError(t, model.EnsureLegacyAccessTokenRetireAt(time.Now().Unix()))
 		t.Cleanup(func() {
 			model.DB = previousDB
 			common.RedisEnabled = previousRedis
 		})
-		accessToken = "header-nav-pat"
+		accessToken = "nap_header_nav_pat"
 		user := model.User{
 			Username:    "tester",
 			Password:    "unused-password-hash",
@@ -71,10 +69,11 @@ func performHeaderNavRequest(t *testing.T, handler gin.HandlerFunc, authenticate
 		}
 		user.SetAccessToken(accessToken)
 		require.NoError(t, db.Create(&user).Error)
+		require.NoError(t, db.Create(&model.UserAccessToken{UserId: user.Id, TokenHash: model.AccessTokenFingerprint(accessToken), Name: "nav", Scopes: `[]`}).Error)
 	}
 
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/api/test", nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/pricing", nil)
 	if authenticated {
 		request.Header.Set("Authorization", "Bearer "+accessToken)
 	}
@@ -249,10 +248,10 @@ func TestHeaderNavPublicRouteRejectsExpiredInternalAccessToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	router := gin.New()
-	router.GET("/api/test", HeaderNavModuleAuth("pricing"), func(c *gin.Context) {
+	router.GET("/api/pricing", HeaderNavModuleAuth("pricing"), func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": true})
 	})
-	request := httptest.NewRequest(http.MethodGet, "/api/test", nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/pricing", nil)
 	request.Header.Set("Authorization", "Bearer "+issueExpiredDashboardAccessToken(t, service.AuthIdentity{
 		UserID: 1, SessionID: "expired-header-nav-session", UserAuthVersion: 1, SessionVersion: 1,
 	}))

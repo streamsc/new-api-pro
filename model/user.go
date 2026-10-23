@@ -1225,29 +1225,6 @@ func IsAdmin(userId int) bool {
 	return user.Role >= common.RoleAdminUser
 }
 
-// ValidateAccessToken resolves a legacy plaintext access token. After the
-// transition deadline it rejects every value without querying the database.
-//
-// Deprecated: 旧版面板访问令牌，仅在升级后的过渡期内使用；删除 users.access_token 列时一并移除。
-func ValidateAccessToken(token string) (*User, error) {
-	if token == "" {
-		return nil, nil
-	}
-	if LegacyAccessTokensRetired(common.GetTimestamp()) {
-		return nil, ErrLegacyAccessTokenRetired
-	}
-	token = strings.Replace(token, "Bearer ", "", 1)
-	user := &User{}
-	err := DB.Where("access_token = ?", token).First(user).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("%w: %v", ErrDatabase, err)
-	}
-	return user, nil
-}
-
 // GetUserQuota gets quota from Redis first, falls back to DB if needed
 func GetUserQuota(id int, fromDB bool) (quota int, err error) {
 	if !fromDB && common.RedisEnabled {

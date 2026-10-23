@@ -24,7 +24,6 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
 import { LoadingState } from '@/components/loading-state'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -69,9 +68,7 @@ export function AccessTokensCard() {
   const formatTime = (seconds: number) =>
     timeFormat.format(new Date(seconds * 1000))
   const [createOpen, setCreateOpen] = useState(false)
-  const [revokeTarget, setRevokeTarget] = useState<
-    AccessToken | 'legacy' | null
-  >(null)
+  const [revokeTarget, setRevokeTarget] = useState<AccessToken | null>(null)
   const [editTarget, setEditTarget] = useState<AccessToken | null>(null)
   // undefined shows every access record; a token ref opens the viewer on it.
   const [records, setRecords] = useState<{ tokenRef?: string } | null>(null)
@@ -95,8 +92,7 @@ export function AccessTokensCard() {
     const target = revokeTarget
     if (access.pending || !target) return
     setRevokeTarget(null)
-    if (target === 'legacy') await access.revokeLegacy()
-    else await access.revoke(target.id)
+    await access.revoke(target.id)
   }
 
   let content: ReactNode
@@ -117,60 +113,8 @@ export function AccessTokensCard() {
       </div>
     )
   } else {
-    const legacy = list.legacy
     content = (
       <div className='space-y-3'>
-        {legacy && (
-          <div className='space-y-2 rounded-md border p-3'>
-            <div className='flex flex-wrap items-center gap-2'>
-              <Badge variant='outline'>{t('Legacy token')}</Badge>
-              <code className='text-muted-foreground text-xs'>
-                …{legacy.token_hint}
-              </code>
-            </div>
-            <p className='text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-xs'>
-              {legacy.created_at ? (
-                <span>
-                  {t('Created {{time}}', {
-                    time: formatTime(legacy.created_at),
-                  })}
-                </span>
-              ) : null}
-              <span>
-                {legacy.last_used_at
-                  ? t('Last used {{time}}', {
-                      time: formatTime(legacy.last_used_at),
-                    })
-                  : t('Never used')}
-              </span>
-            </p>
-            <div className='flex flex-wrap items-center justify-between gap-2'>
-              <p className='text-sm'>
-                {t(
-                  'The legacy token stops working on {{date}}. Create a new token to replace it.',
-                  { date: formatTime(legacy.retire_at) }
-                )}
-              </p>
-              <div className='flex flex-wrap gap-2'>
-                <Button
-                  size='sm'
-                  variant='outline'
-                  onClick={() => setRecords({ tokenRef: legacy.token_ref })}
-                >
-                  {t('Access records')}
-                </Button>
-                <Button
-                  size='sm'
-                  variant='destructive'
-                  disabled={access.pending}
-                  onClick={() => setRevokeTarget('legacy')}
-                >
-                  {t('Revoke')}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
         {list.items.length === 0 ? (
           <EmptyState
             icon={KeyRound}

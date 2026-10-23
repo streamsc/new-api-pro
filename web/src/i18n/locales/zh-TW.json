@@ -2830,7 +2830,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相關項目",
     "footer.defaultCopyright": "版權所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版權所有，由項目貢獻者設計與開發。",
+    "footer.newapi.projectAttributionSuffix": "版權所有，由項目貢獻者設計與開發。",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "進階自訂渠道僅對 /v1/responses 且不做協定轉換的路由生效。",
     "GitHub ID is empty!": "GitHub ID 為空！",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "對於 2025 年 5 月 10 日之後新增的渠道，在部署時無需從模型名稱中移除 \".\"",
@@ -7336,6 +7336,19 @@
     "Zhipu": "智譜",
     "Zhipu GLM": "智譜GLM",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "In-flight / Limit": "在途 / 上限",
+    "Relay concurrency limit": "Relay 最大並發數",
+    "0 means unlimited standard Relay requests": "0 表示標準 Relay 請求不限並發",
+    "Authenticated token HMAC": "已認證令牌 HMAC",
+    "Authenticated user HMAC": "已認證使用者 HMAC",
+    "Standard Relay": "標準 Relay",
+    "Updated every minute": "每分鐘更新",
+    "Redis shared": "Redis 共用",
+    "Current process": "目前程序",
+    "Zero does not guarantee all requests have drained.": "零值不保證全部請求已排空。",
+    "Failed to fetch in-flight requests": "在途請求數取得失敗",
+    "Failed to load channels": "管道載入失敗",
+    "Refresh channels": "重新整理管道"
   }
 }

@@ -34,7 +34,6 @@ import {
   getAccessTokenCatalog,
   listAccessTokens,
   revokeAccessToken,
-  revokeLegacyAccessToken,
   updateAccessToken,
   type AccessTokenInput,
   type AccessTokenUpdate,
@@ -150,18 +149,6 @@ export function useAccessTokens() {
     [runVerified, t]
   )
 
-  const revokeLegacy = useCallback(async () => {
-    const revoked = await runVerified(
-      { scope: 'access_token.revoke', context: { legacy: true } },
-      async (proofToken, signal) => {
-        await revokeLegacyAccessToken(proofToken, signal)
-        return true
-      }
-    )
-    if (revoked) toast.success(t('Access token revoked'))
-    return revoked === true
-  }, [runVerified, t])
-
   const rename = useMutation({
     mutationFn: (input: { id: number; name: string }) =>
       updateAccessToken(input.id, { name: input.name }),
@@ -216,7 +203,6 @@ export function useAccessTokens() {
     pending,
     create,
     revoke,
-    revokeLegacy,
     update,
     updatePending: pending || rename.isPending,
     showVerification:

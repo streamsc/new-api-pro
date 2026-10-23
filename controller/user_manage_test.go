@@ -470,6 +470,8 @@ func TestManageUserQuotaMiddlewareKeepsOneOperationPerRequest(t *testing.T) {
 	pat := "quota-middleware-test-token"
 	operator := model.User{Id: 9999, Username: "root-operator", Role: common.RoleRootUser, Status: common.UserStatusEnabled, AuthVersion: 1, AccessToken: &pat, Quota: 1000}
 	require.NoError(t, db.Create(&operator).Error)
+	require.NoError(t, db.AutoMigrate(&model.UserAccessToken{}))
+	pat, _ = createScopedAccessToken(t, operator.Id, 0, "user:write")
 	router := gin.New()
 	router.Use(middleware.RequestId(), middleware.AccessTokenAudit())
 	router.POST("/api/user/manage", middleware.AdminAuth(), ManageUser)

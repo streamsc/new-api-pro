@@ -4,21 +4,17 @@ import (
 	"errors"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 const (
 	AccessTokenPrefix                = "nap_"
 	AccessTokenSessionPrefix         = "pat:"
 	AccessTokenSessionVersion        = 1
-	legacyAccessTokenRetireAtKey     = "LegacyAccessTokenRetireAt"
-	legacyAccessTokenTransitionDays  = 30
 	userAccessTokenCleanupBatchSize  = 500
 	userAccessTokenTouchIntervalSecs = 60
 )
@@ -28,12 +24,7 @@ var (
 	ErrAccessTokenLimit         = errors.New("access token limit reached")
 	ErrAccessTokenExpired       = errors.New("access token has expired")
 	ErrLegacyAccessTokenRetired = errors.New("legacy access token has been retired")
-	errLegacyRetireAtReadOnly   = errors.New("LegacyAccessTokenRetireAt is managed by the server")
 )
-
-// legacyAccessTokenRetireAt caches the deployment-wide deadline loaded at
-// startup. Zero means it was never loaded, which is treated as retired.
-var legacyAccessTokenRetireAt atomic.Int64
 
 // UserAccessToken is a scoped dashboard personal access token. Only the
 // SHA-256 fingerprint of the plaintext is stored; it doubles as the audit
@@ -297,33 +288,4 @@ func checkAccessTokenIdentity(tx *gorm.DB, tokenID int, identity AuthSessionIden
 		return ErrUserSessionInactive
 	}
 	return nil
-}
-
-// EnsureLegacyAccessTokenRetireAt records the legacy token deadline on first
-// start (now + 30 days) and loads the stored value. The first node to start
-// wins; later starts and other nodes only read it.
-func EnsureLegacyAccessTokenRetireAt(now int64) error {
-	deadline := strconv.FormatInt(now+legacyAccessTokenTransitionDays*24*60*60, 10)
-	if err := DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&Option{Key: legacyAccessTokenRetireAtKey, Value: deadline}).Error; err != nil {
-		return err
-	}
-	var option Option
-	if err := DB.Where(&Option{Key: legacyAccessTokenRetireAtKey}).First(&option).Error; err != nil {
-		return err
-	}
-	retireAt, err := strconv.ParseInt(strings.TrimSpace(option.Value), 10, 64)
-	if err != nil || retireAt <= 0 {
-		return errors.New("invalid LegacyAccessTokenRetireAt option value")
-	}
-	legacyAccessTokenRetireAt.Store(retireAt)
-	return nil
-}
-
-func LegacyAccessTokenRetireAt() int64 {
-	return legacyAccessTokenRetireAt.Load()
-}
-
-func LegacyAccessTokensRetired(now int64) bool {
-	retireAt := legacyAccessTokenRetireAt.Load()
-	return retireAt <= 0 || now >= retireAt
 }

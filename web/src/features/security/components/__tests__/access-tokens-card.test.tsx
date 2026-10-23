@@ -127,7 +127,7 @@ beforeEach(() => {
     setItem: () => undefined,
     removeItem: () => undefined,
   })
-  list = { items: [], legacy: null }
+  list = { items: [] }
   listFailure = null
   catalogGate = Promise.resolve()
   vi.spyOn(api, 'get').mockImplementation(async (url, config) => {
@@ -224,7 +224,6 @@ describe('access tokens card', () => {
           scopes: ['tokens:read', 'retired:write'],
         }),
       ],
-      legacy: null,
     }
     renderCard()
     expect(await screen.findByText('nightly export')).toBeVisible()
@@ -241,7 +240,7 @@ describe('access tokens card', () => {
   })
 
   it('disables Edit while the permission catalog is loading or failed to load', async () => {
-    list = { items: [tokenItem({ id: 7 })], legacy: null }
+    list = { items: [tokenItem({ id: 7 })] }
     let failCatalog!: (error: Error) => void
     catalogGate = new Promise((_, reject) => {
       failCatalog = reject
@@ -269,49 +268,11 @@ describe('access tokens card', () => {
     expect(await screen.findByText('No access tokens')).toBeVisible()
   })
 
-  it('shows the legacy stop date and offers revocation and records for it', async () => {
-    list = {
-      items: [],
-      legacy: {
-        token_hint: 'Zz99',
-        token_ref: 'b'.repeat(64),
-        created_at: null,
-        last_used_at: null,
-        last_used_ip: '',
-        retire_at: NOW + 10 * 24 * 60 * 60,
-      },
-    }
-    renderCard()
-    expect(await screen.findByText('Legacy token')).toBeVisible()
-    expect(
-      screen.getByText(/^The legacy token stops working on .+\. Create a new/)
-    ).toBeVisible()
-    expect(screen.getByText('…Zz99')).toBeVisible()
-    expect(
-      screen.queryByRole('button', { name: /Regenerate|Generate/ })
-    ).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Revoke' })).toBeVisible()
-    const [, legacyRecords] = screen.getAllByRole('button', {
-      name: 'Access records',
-    })
-    await userEvent.click(legacyRecords)
-    await screen.findByRole('dialog', { name: 'Access records' })
-    await waitFor(() =>
-      expect(api.get).toHaveBeenCalledWith('/api/audit/self', {
-        params: expect.objectContaining({
-          category: 'access_token',
-          token_ref: 'b'.repeat(64),
-        }),
-      })
-    )
-  })
-
   it('disables creation at the token limit', async () => {
     list = {
       items: Array.from({ length: catalog.max_tokens }, (_, index) =>
         tokenItem({ id: index + 1, name: `token ${index + 1}` })
       ),
-      legacy: null,
     }
     renderCard()
     expect(await screen.findByText('token 20')).toBeVisible()
@@ -336,7 +297,7 @@ describe('access tokens card', () => {
   })
 
   it('revokes a token after confirmation with a proof bound to that token', async () => {
-    list = { items: [tokenItem({ id: 7 })], legacy: null }
+    list = { items: [tokenItem({ id: 7 })] }
     renderCard()
     const user = userEvent.setup()
     await openRevoke(user)
@@ -360,7 +321,7 @@ describe('access tokens card', () => {
   })
 
   it('does not revoke when identity verification is cancelled', async () => {
-    list = { items: [tokenItem({ id: 7 })], legacy: null }
+    list = { items: [tokenItem({ id: 7 })] }
     renderCard()
     const user = userEvent.setup()
     await openRevoke(user)
@@ -376,46 +337,8 @@ describe('access tokens card', () => {
     expect(screen.getByText('deploy script')).toBeVisible()
   })
 
-  it('revokes the legacy token with a proof bound to the legacy token', async () => {
-    list = {
-      items: [],
-      legacy: {
-        token_hint: 'Zz99',
-        token_ref: 'b'.repeat(64),
-        created_at: NOW - 3600,
-        last_used_at: NOW - 60,
-        last_used_ip: '203.0.113.9',
-        retire_at: NOW + 10 * 24 * 60 * 60,
-      },
-    }
-    renderCard()
-    const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: 'Revoke' }))
-    await user.click(
-      within(await screen.findByRole('alertdialog')).getByRole('button', {
-        name: 'Revoke',
-      })
-    )
-    await verifyPassword(user)
-    await waitFor(() =>
-      expect(api.delete).toHaveBeenCalledWith(
-        '/api/user/access_tokens/legacy',
-        expect.objectContaining({
-          headers: { 'X-Security-Proof': 'one-use-proof-1' },
-          singleUseAuthorization: true,
-        })
-      )
-    )
-    expect(verifyCalls()).toEqual([
-      expect.objectContaining({
-        scope: 'access_token.revoke',
-        context: { legacy: true },
-      }),
-    ])
-  })
-
   it('aborts a revocation when the active account changes', async () => {
-    list = { items: [tokenItem({ id: 7 })], legacy: null }
+    list = { items: [tokenItem({ id: 7 })] }
     let complete!: (value: { data: { success: boolean; data: null } }) => void
     const pending = new Promise<{ data: { success: boolean; data: null } }>(
       (resolve) => {
@@ -446,7 +369,7 @@ describe('access tokens card', () => {
   })
 
   it('renames a token without identity verification and blocks a second save while it runs', async () => {
-    list = { items: [tokenItem({ id: 7 })], legacy: null }
+    list = { items: [tokenItem({ id: 7 })] }
     let complete!: () => void
     const saved = new Promise<{
       data: { success: boolean; data: AccessTokenItem }
@@ -486,7 +409,7 @@ describe('access tokens card', () => {
   })
 
   it('saves a permission change with a proof bound to the token and the new grant', async () => {
-    list = { items: [tokenItem({ id: 7 })], legacy: null }
+    list = { items: [tokenItem({ id: 7 })] }
     const scopes = ['tokens:read', 'tokens:write']
     const patch = mockPatch(tokenItem({ id: 7, scopes }))
     renderCard()
@@ -526,7 +449,7 @@ describe('access tokens card', () => {
   })
 
   it('keeps the edited permissions and saves nothing when verification is cancelled', async () => {
-    list = { items: [tokenItem({ id: 7 })], legacy: null }
+    list = { items: [tokenItem({ id: 7 })] }
     const patch = mockPatch(tokenItem({ id: 7 }))
     renderCard()
     const user = userEvent.setup()
@@ -546,7 +469,6 @@ describe('access tokens card', () => {
   it('keeps permissions the catalog no longer offers on a rename and leaves them out of a new grant', async () => {
     list = {
       items: [tokenItem({ id: 7, scopes: ['retired:write'] })],
-      legacy: null,
     }
     const patch = mockPatch(tokenItem({ id: 7, name: 'renamed' }))
     renderCard()
@@ -558,7 +480,6 @@ describe('access tokens card', () => {
     await user.type(input, 'renamed')
     list = {
       items: [tokenItem({ id: 7, name: 'renamed', scopes: ['retired:write'] })],
-      legacy: null,
     }
     await user.click(within(dialog).getByRole('button', { name: 'Save' }))
     await waitFor(() =>
@@ -591,7 +512,7 @@ describe('access tokens card', () => {
   })
 
   it('does not save a change that removes every permission', async () => {
-    list = { items: [tokenItem({ id: 7 })], legacy: null }
+    list = { items: [tokenItem({ id: 7 })] }
     const patch = mockPatch(tokenItem({ id: 7 }))
     renderCard()
     const user = userEvent.setup()
@@ -608,7 +529,6 @@ describe('access tokens card', () => {
   it('opens access records for every token or for one token', async () => {
     list = {
       items: [tokenItem({ id: 7, token_ref: 'c'.repeat(64) })],
-      legacy: null,
     }
     renderCard()
     const user = userEvent.setup()

@@ -117,11 +117,9 @@ type AccessTokenUpdateContext struct {
 	Scopes  []string `json:"scopes"`
 }
 
-// AccessTokenRevokeContext names exactly one token: a scoped token ID or the
-// legacy token.
+// AccessTokenRevokeContext binds revocation to a scoped token ID.
 type AccessTokenRevokeContext struct {
-	TokenID int  `json:"token_id,omitempty"`
-	Legacy  bool `json:"legacy,omitempty"`
+	TokenID int `json:"token_id,omitempty"`
 }
 
 const (
@@ -254,8 +252,8 @@ func BindVerificationOperation(operation VerificationOperation) (VerificationBin
 		if len(fields) != 1 || common.Unmarshal(operation.Context, &context) != nil || context.TokenID < 0 {
 			return VerificationBinding{}, ErrVerificationContextInvalid
 		}
-		// Exactly one target: {"token_id": n} or {"legacy": true}.
-		if (context.TokenID > 0) == context.Legacy {
+		// A revoke proof is bound to one scoped token.
+		if context.TokenID <= 0 {
 			return VerificationBinding{}, ErrVerificationContextInvalid
 		}
 		normalized = context

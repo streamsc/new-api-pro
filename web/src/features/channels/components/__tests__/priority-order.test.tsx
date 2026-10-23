@@ -770,9 +770,13 @@ test('dropping onto a card that moved into the original slot joins its priority 
   // Channel 2 now occupies the last slot that channel 3 originally occupied.
   fireEvent.pointerMove(scope, { pointerId: 1, clientX: 790, clientY: 150 })
   await waitFor(() =>
-    expect(screen.getByRole('status')).toHaveTextContent(
-      'Join the same priority tier'
-    )
+    expect(
+      screen
+        .getAllByRole('status')
+        .find((element) =>
+          element.textContent?.includes('Join the same priority tier')
+        )
+    ).toHaveTextContent('Join the same priority tier')
   )
   expect(
     document.querySelector(
@@ -812,9 +816,13 @@ test.each(['table', 'card'] as const)(
     )
     fireEvent.pointerMove(scope, { pointerId: 1, ...target })
     await waitFor(() =>
-      expect(screen.getByRole('status')).toHaveTextContent(
-        'Join the same priority tier'
-      )
+      expect(
+        screen
+          .getAllByRole('status')
+          .find((element) =>
+            element.textContent?.includes('Join the same priority tier')
+          )
+      ).toHaveTextContent('Join the same priority tier')
     )
     expect(source.isConnected).toBe(true)
     expect(source).toHaveStyle({ opacity: '0.2' })

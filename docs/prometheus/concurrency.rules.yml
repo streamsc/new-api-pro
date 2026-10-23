@@ -1,0 +1,28 @@
+groups:
+  - name: new-api-concurrency
+    rules:
+      - record: new_api:channel_concurrency_in_flight:valid
+        expr: new_api_channel_concurrency_in_flight and on(job, instance, deployment, concurrency_domain) (up == 1)
+      - record: new_api:channel_concurrency_limit:valid
+        expr: new_api_channel_concurrency_limit and on(job, instance, deployment, concurrency_domain) (up == 1)
+      - record: new_api:channel_concurrency_limit_enabled:valid
+        expr: new_api_channel_concurrency_limit_enabled and on(job, instance, deployment, concurrency_domain) (up == 1)
+      - record: new_api:redis_concurrency_in_flight:deduplicated
+        expr: max by(deployment, concurrency_domain, channel_id) (new_api:channel_concurrency_in_flight:valid{scope="redis"})
+      - record: new_api:process_concurrency_in_flight:sum
+        expr: sum by(deployment, channel_id) (new_api:channel_concurrency_in_flight:valid{scope="process"})
+      - record: new_api:redis_concurrency_config:inconsistent
+        expr: |
+          (max by(deployment, concurrency_domain, channel_id) (new_api:channel_concurrency_limit_enabled:valid{scope="redis"})
+          != bool min by(deployment, concurrency_domain, channel_id) (new_api:channel_concurrency_limit_enabled:valid{scope="redis"})) == 1
+          or
+          (max by(deployment, concurrency_domain, channel_id) (new_api:channel_concurrency_limit:valid{scope="redis"})
+          != bool min by(deployment, concurrency_domain, channel_id) (new_api:channel_concurrency_limit:valid{scope="redis"})) == 1
+      - record: new_api:redis_concurrency_utilization:ratio
+        expr: |
+          (new_api:redis_concurrency_in_flight:deduplicated
+          / on(deployment, concurrency_domain, channel_id)
+          max by(deployment, concurrency_domain, channel_id) (new_api:channel_concurrency_limit:valid{scope="redis"}))
+          unless on(deployment, concurrency_domain, channel_id) new_api:redis_concurrency_config:inconsistent
+      - record: new_api:process_concurrency_utilization:ratio
+        expr: new_api:channel_concurrency_in_flight:valid{scope="process"} / new_api:channel_concurrency_limit:valid{scope="process"}

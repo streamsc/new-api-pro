@@ -767,6 +767,8 @@ func verifyAPITokenAudit(t *testing.T) {
 	pat := "api-token-audit-pat-secret"
 	user := &model.User{Username: "token-owner", Password: "placeholder", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1, AccessToken: &pat, AffCode: "token-owner"}
 	require.NoError(t, model.DB.Create(user).Error)
+	require.NoError(t, model.DB.AutoMigrate(&model.UserAccessToken{}))
+	pat, _ = createScopedAccessToken(t, user.Id, 0, "api_key:reveal")
 	other := &model.User{Username: "other-owner", Password: "placeholder", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1, AffCode: "other-owner"}
 	require.NoError(t, model.DB.Create(other).Error)
 	session := &model.UserSession{SID: "token-audit-session", UserID: user.Id, Version: 1, UserAuthVersion: 1, Status: model.UserSessionStatusActive, RefreshHash: "placeholder", LoginMethod: "password", LastActiveAt: time.Now().Unix(), ExpiresAt: time.Now().Add(time.Hour).Unix()}

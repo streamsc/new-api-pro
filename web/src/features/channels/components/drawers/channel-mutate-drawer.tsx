@@ -299,6 +299,7 @@ const SENSITIVE_FORM_FIELDS = [
   'force_format',
   'thinking_to_content',
   'proxy',
+  'max_concurrency',
   'http_protocol',
   'http2_connection_shards',
   'tls_insecure_skip_verify',
@@ -2646,6 +2647,33 @@ export function ChannelMutateDrawer({
             />
           </fieldset>
         )}
+        <FormField
+          control={form.control}
+          name='max_concurrency'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('Relay concurrency limit')}</FormLabel>
+              <FormControl>
+                <Input
+                  type='number'
+                  min={0}
+                  step={1}
+                  disabled={sensitiveLocked || isSubmitting}
+                  {...field}
+                  onChange={(event) =>
+                    field.onChange(
+                      event.target.value === '' ? 0 : Number(event.target.value)
+                    )
+                  }
+                />
+              </FormControl>
+              <FormDescription>
+                {t('0 means unlimited standard Relay requests')}
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
       </ChannelBasicSection>
     </div>
   )
@@ -2870,7 +2898,15 @@ export function ChannelMutateDrawer({
                 <code className='bg-muted rounded px-1 py-0.5'>
                   {'{client_header:NAME}'}
                 </code>{' '}
-                — {t('Client header value')}
+                — {t('Client header value')},{' '}
+                <code className='bg-muted rounded px-1 py-0.5'>
+                  {'{context_hmac:user_id}'}
+                </code>{' '}
+                — {t('Authenticated user HMAC')},{' '}
+                <code className='bg-muted rounded px-1 py-0.5'>
+                  {'{context_hmac:token_id}'}
+                </code>{' '}
+                — {t('Authenticated token HMAC')}
               </FormDescription>
               <FormMessage />
             </FormItem>

@@ -121,7 +121,7 @@ beforeEach(() => {
     max_tokens: 20,
     default_expiry_days: 30,
   }
-  list = { items: [], legacy: null }
+  list = { items: [] }
   vi.spyOn(api, 'get').mockImplementation(async (url, config) => {
     if (url === '/api/verify/methods') {
       return {

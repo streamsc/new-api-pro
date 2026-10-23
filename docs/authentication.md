@@ -194,6 +194,6 @@ Proof 同时绑定用户、登录会话、用户鉴权版本、会话版本和 s
 - Redis 限流从近似滑动窗口改为原子固定窗口，存在明确的边界双倍突发语义。
 - 用户级模型成功请求限流的 UTC 时间戳在滚动升级期间存在一个窗口的混合格式过渡，期间可能临时误放行或误拒绝。
 - 自建客户端应按新的 AuthBundle、`flow_token` 和 Security Proof 契约升级；PAT 客户端可直接移除 `New-Api-User`。
-- 旧版 PAT 保留在 `users.access_token` 中，自新版首次启动起 30 天内照常可用，之后自动停用并返回 401 `ACCESS_TOKEN_LEGACY_RETIRED`。停用日期记录在 `options` 表的 `LegacyAccessTokenRetireAt`，由服务端写入，不能通过设置接口修改。过渡期内不能再生成旧版令牌，但可以撤销。
+- Pro 升级后立即停用旧版 PAT，受保护接口返回 401 `ACCESS_TOKEN_LEGACY_RETIRED`，无 30 天兼容期。历史 `users.access_token` 列保留，但不用于认证；旧令牌生成、撤销接口及退役计时配置均已移除。请通过浏览器登录后创建 `nap_` 作用域令牌，并更新管理脚本。
 - 删除了 `/api/user/token*` 接口，改为 `/api/user/access_tokens`。
-- 降级到旧版本后，新令牌不可用；未撤销的旧版令牌会重新可用，因为旧版本不认停用日期。
+- 降级到旧版本后，新令牌不可用；历史列中的旧版令牌可能重新可用，因为旧版本仍使用旧凭据认证。回滚前应评估此认证行为变化。

@@ -96,6 +96,8 @@ func TestDeleteRedemptionBatch(t *testing.T) {
 			token := "redemption-audit-test-token"
 			admin := model.User{Username: "redemption-audit-admin", Password: "unused", Role: common.RoleAdminUser, Status: common.UserStatusEnabled, Group: "default", AccessToken: &token}
 			require.NoError(t, db.Create(&admin).Error)
+			require.NoError(t, db.AutoMigrate(&model.UserAccessToken{}))
+			token, _ = createScopedAccessToken(t, admin.Id, 0, "redemption:write")
 			codes := make([]model.Redemption, 16)
 			for index := range codes {
 				codes[index] = model.Redemption{Name: "selected", Key: fmt.Sprintf("%032d", index+1), Quota: 100, Status: common.RedemptionCodeStatusEnabled}

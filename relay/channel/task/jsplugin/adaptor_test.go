@@ -742,7 +742,7 @@ export function parseBatchResult() {return [];}
 			}
 			descriptor := requestDescriptor{URL: tc.start, Method: http.MethodGet, Headers: map[string]string{
 				"Authorization": "Bearer channel-secret", "Cookie": "session=channel-secret",
-				"X-API-Key": "channel-secret", "x-goog-api-key": "channel-secret", "X-Vendor-Credential": "channel-secret",
+				"X-API-Key": "channel-secret", "x-goog-api-key": "channel-secret", "X-Vendor-Credential": "channel-secret", "X-Context-HMAC": "v1:user_id:channel-secret",
 				"Accept": "application/json", "Accept-Language": "en", "Content-Type": "application/json",
 			}}
 			if tc.body != "" {
@@ -806,7 +806,7 @@ export function parseBatchResult() {return [];}
 			}
 			require.Len(t, sent, tc.wantRequests)
 			for i, hop := range sent {
-				for _, name := range []string{"Authorization", "Cookie", "X-API-Key", "X-Goog-Api-Key", "X-Vendor-Credential"} {
+				for _, name := range []string{"Authorization", "Cookie", "X-API-Key", "X-Goog-Api-Key", "X-Vendor-Credential", "X-Context-HMAC"} {
 					if i < tc.credentialHops {
 						assert.Contains(t, hop.request.Header.Get(name), "channel-secret", "hop %d, header %s", i, name)
 					} else {

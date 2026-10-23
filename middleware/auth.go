@@ -102,8 +102,8 @@ func TryUserAuth() func(c *gin.Context) {
 		}
 		user, identity, credentialKind, err := classifyDashboardCredential(c)
 		if errors.Is(err, model.ErrLegacyAccessTokenRetired) {
-			// After the deadline no opaque value is looked up, so a retired
-			// token is indistinguishable from any unknown value: anonymous.
+			// Retired credentials are never looked up. Optional routes treat
+			// them like any other unknown credential: anonymous.
 			credentialKind, err = dashboardCredentialUnmatched, nil
 		}
 		if err != nil {
@@ -178,7 +178,7 @@ func GetSessionAuthIdentity(c *gin.Context) (service.AuthIdentity, bool) {
 
 // GetStepUpIdentity returns the identity that may request and consume
 // security verification proofs: a browser session, or a scoped access token
-// bound to its own pat:<id> session. Legacy access tokens have neither.
+// bound to its own pat:<id> session.
 func GetStepUpIdentity(c *gin.Context) (service.AuthIdentity, bool) {
 	if identity, ok := GetSessionAuthIdentity(c); ok {
 		return identity, true
@@ -237,11 +237,10 @@ func classifyDashboardCredential(c *gin.Context) (*model.UserBase, service.AuthI
 // accessTokenLookup is the per-request result of resolving an opaque dashboard
 // credential. A nil user with a nil err means the value is not a PAT.
 type accessTokenLookup struct {
-	ref    string
-	legacy bool
-	token  *model.UserAccessToken
-	user   *model.UserBase
-	err    error
+	ref   string
+	token *model.UserAccessToken
+	user  *model.UserBase
+	err   error
 }
 
 // lookupAccessToken resolves raw once per request, so the access audit and
@@ -254,13 +253,7 @@ func lookupAccessToken(c *gin.Context, raw string) *accessTokenLookup {
 	lookup := &accessTokenLookup{ref: ref}
 	c.Set(accessTokenLookupContextKey, lookup)
 	if !strings.HasPrefix(raw, model.AccessTokenPrefix) {
-		lookup.legacy = true
-		legacyUser, err := model.ValidateAccessToken(raw)
-		if err != nil || legacyUser == nil || legacyUser.Id <= 0 {
-			lookup.err = err
-			return lookup
-		}
-		lookup.user, lookup.err = model.GetUserCache(legacyUser.Id)
+		lookup.err = model.ErrLegacyAccessTokenRetired
 		return lookup
 	}
 	token, err := model.FindUserAccessTokenByHash(ref)
@@ -294,8 +287,6 @@ func enforceAccessTokenRoute(c *gin.Context, lookup *accessTokenLookup, abort bo
 	switch {
 	case declared && rule.kind == accessTokenRuleSession:
 		code, reason, message = "AUTH_SESSION_REQUIRED", "session_required", common.NewMessage(accessTokenSessionRequiredMsg)
-	case lookup.legacy:
-		return true
 	case !declared:
 		common.SysError(common.LogText("access token route is not declared: %s", key))
 		code, reason, message = "ACCESS_TOKEN_ROUTE_UNDECLARED", "route_undeclared", common.NewMessage("Unauthorized, insufficient privileges")
@@ -318,14 +309,8 @@ func enforceAccessTokenRoute(c *gin.Context, lookup *accessTokenLookup, abort bo
 // also get a step-up identity bound to the token instead of a browser session.
 func setAccessTokenContext(c *gin.Context, lookup *accessTokenLookup) {
 	_, alreadySet := c.Get(accessTokenIdentityContextKey)
-	c.Set("access_token_legacy", lookup.legacy)
 	// Security audit params identify the token the same way the access audit does.
 	c.Set("access_token_ref", lookup.ref)
-	if lookup.legacy {
-		c.Set("access_token_id", 0)
-		c.Set("access_token_scopes", []string{})
-		return
-	}
 	c.Set("access_token_id", lookup.token.Id)
 	c.Set("access_token_scopes", lookup.token.GetScopes())
 	c.Set(accessTokenIdentityContextKey, service.AuthIdentity{

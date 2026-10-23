@@ -9,4 +9,6 @@ docs
 .gocache
 /web/node_modules
 /web/dist
+/web/default
+/web/classic
 !THIRD-PARTY-LICENSES.md

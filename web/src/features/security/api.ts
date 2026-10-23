@@ -38,19 +38,8 @@ export interface AccessTokenItem {
   created_at: number
 }
 
-export interface LegacyAccessToken {
-  token_hint: string
-  token_ref: string
-  created_at: number | null
-  last_used_at: number | null
-  last_used_ip: string
-  /** Unix seconds after which the legacy token stops working. */
-  retire_at: number
-}
-
 export interface AccessTokenList {
   items: AccessTokenItem[]
-  legacy: LegacyAccessToken | null
 }
 
 export type AccessTokenGroup = 'personal' | 'admin' | 'system'
@@ -150,21 +139,6 @@ export async function revokeAccessToken(
 ): Promise<void> {
   await authResult<null>(
     api.delete(`/api/user/access_tokens/${id}`, {
-      ...authRequestOptions,
-      headers: { 'X-Security-Proof': proofToken },
-      singleUseAuthorization: true,
-      signal,
-    }),
-    'Failed to revoke token'
-  )
-}
-
-export async function revokeLegacyAccessToken(
-  proofToken: string,
-  signal: AbortSignal
-): Promise<void> {
-  await authResult<null>(
-    api.delete('/api/user/access_tokens/legacy', {
       ...authRequestOptions,
       headers: { 'X-Security-Proof': proofToken },
       singleUseAuthorization: true,

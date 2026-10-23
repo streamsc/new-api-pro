@@ -7,6 +7,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -23,6 +24,9 @@ func RedisKeyCacheSeconds() int {
 // InitRedisClient This function is called after init()
 func InitRedisClient() (err error) {
 	if os.Getenv("REDIS_CONN_STRING") == "" {
+		if hasRedisSentinelConfig() {
+			return fmt.Errorf("REDIS_CONN_STRING is required when Redis Sentinel is configured")
+		}
 		RedisEnabled = false
 		SysLog(LogText("REDIS_CONN_STRING not set, Redis is not enabled"))
 		return nil
@@ -37,7 +41,11 @@ func InitRedisClient() (err error) {
 		FatalLog(LogText("failed to parse Redis connection string: %s", err.Error()))
 	}
 	opt.PoolSize = GetEnvOrDefault("REDIS_POOL_SIZE", 10)
-	RDB = redis.NewClient(opt)
+	var sentinelConfig *redisSentinelConfig
+	RDB, sentinelConfig, err = newRedisClient(opt)
+	if err != nil {
+		return fmt.Errorf("failed to configure Redis client: %w", err)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -47,7 +55,12 @@ func InitRedisClient() (err error) {
 		FatalLog(LogText("Redis ping test failed: %s", err.Error()))
 	}
 	if DebugEnabled {
-		SysLog(LogText("Redis connected to %s", opt.Addr))
+		if sentinelConfig == nil {
+			SysLog(LogText("Redis connected to %s", opt.Addr))
+		} else {
+			SysLog(LogText("Redis Sentinel master: %s", sentinelConfig.masterName))
+			SysLog(LogText("Redis Sentinel addresses: %s", strings.Join(sentinelConfig.addrs, ",")))
+		}
 		SysLog(LogText("Redis database: %d", opt.DB))
 	}
 	return err

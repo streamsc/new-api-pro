@@ -39,7 +39,6 @@ func setupDashboardAuthMiddlewareTest(t *testing.T) {
 	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
 	common.RedisEnabled = false
 	common.SessionSecret = "middleware-auth-test-secret"
-	require.NoError(t, model.EnsureLegacyAccessTokenRetireAt(time.Now().Unix()))
 	t.Cleanup(func() {
 		model.DB = previousDB
 		model.LOG_DB = previousLogDB
@@ -114,25 +113,14 @@ func TestTokenAuthReadOnlyTranslatesErrors(t *testing.T) {
 	}
 }
 
-func TestUserAuthAllowsOpaqueDottedPAT(t *testing.T) {
+func TestUserAuthRejectsStoredLegacyToken(t *testing.T) {
 	setupDashboardAuthMiddlewareTest(t)
-	user := createMiddlewarePATUser(t, "dotted-pat-user", "opaque.key.with-dots")
+	createMiddlewarePATUser(t, "retired-user", "opaque.key.with-dots")
 	router := gin.New()
-	router.GET("/protected", UserAuth(), func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"id": c.GetInt("id")})
-	})
-	request := httptest.NewRequest(http.MethodGet, "/protected", nil)
-	request.Header.Set("Authorization", "Bearer opaque.key.with-dots")
-	response := httptest.NewRecorder()
-
-	router.ServeHTTP(response, request)
-
-	assert.Equal(t, http.StatusOK, response.Code)
-	var body struct {
-		ID int `json:"id"`
-	}
-	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
-	assert.Equal(t, user.Id, body.ID)
+	router.GET("/api/user/self", UserAuth(), func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	response := middlewareBearerRequest(router, "/api/user/self", "opaque.key.with-dots")
+	assert.Equal(t, http.StatusUnauthorized, response.Code)
+	assert.Contains(t, response.Body.String(), "ACCESS_TOKEN_LEGACY_RETIRED")
 }
 
 func TestUserAuthNeverFallsBackForRecognizedInvalidInternalJWT(t *testing.T) {
@@ -162,7 +150,7 @@ func TestTryUserAuthCredentialClassification(t *testing.T) {
 
 	patUser := createMiddlewarePATUser(t, "optional-pat-user", "optional.pat.with-dots")
 	internalUser := createMiddlewarePATUser(t, "optional-session-user", "unrelated-pat")
-	scopedPAT, _ := createMiddlewareScopedToken(t, patUser.Id, 0, "profile:read")
+	scopedPAT, _ := createMiddlewareScopedToken(t, patUser.Id, 0, "usage:read")
 	now := time.Now().Unix()
 	session := &model.UserSession{
 		SID:             "optional-auth-session",
@@ -196,8 +184,9 @@ func TestTryUserAuthCredentialClassification(t *testing.T) {
 	}).SignedString([]byte("external-secret"))
 	require.NoError(t, err)
 
+	validScopedPAT, _ := createMiddlewareScopedToken(t, patUser.Id, 0, "profile:read")
 	router := gin.New()
-	router.GET("/optional", TryUserAuth(), func(c *gin.Context) {
+	router.GET("/api/user/self", TryUserAuth(), func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"id":               c.GetInt("id"),
 			"use_access_token": c.GetBool("use_access_token"),
@@ -216,7 +205,7 @@ func TestTryUserAuthCredentialClassification(t *testing.T) {
 		{name: "opaque unmatched credential", token: "opaque-relay-key", wantStatus: http.StatusOK},
 		{name: "dotted unmatched credential", token: "ordinary.key.with-dots", wantStatus: http.StatusOK},
 		{name: "third party jwt", token: externalToken, wantStatus: http.StatusOK},
-		{name: "valid pat", token: "optional.pat.with-dots", wantStatus: http.StatusOK, wantUserID: patUser.Id, wantPAT: true},
+		{name: "valid pat", token: validScopedPAT, wantStatus: http.StatusOK, wantUserID: patUser.Id, wantPAT: true},
 		{name: "scoped pat outside its grant stays anonymous", token: scopedPAT, wantStatus: http.StatusOK},
 		{name: "valid internal access jwt", token: accessToken, wantStatus: http.StatusOK, wantUserID: internalUser.Id},
 		{name: "expired internal access jwt", token: issueExpiredDashboardAccessToken(t, identity), wantStatus: http.StatusUnauthorized, wantErrorCode: "AUTH_TOKEN_EXPIRED"},
@@ -225,7 +214,7 @@ func TestTryUserAuthCredentialClassification(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodGet, "/optional", nil)
+			request := httptest.NewRequest(http.MethodGet, "/api/user/self", nil)
 			if test.token != "" {
 				request.Header.Set("Authorization", "Bearer "+test.token)
 			}
@@ -262,12 +251,12 @@ func TestTryUserAuthCredentialClassification(t *testing.T) {
 			return
 		}
 		patUserQueries++
-		if patUserQueries == 2 {
+		if patUserQueries == 1 {
 			tx.AddError(forcedCacheError)
 		}
 	}))
-	cacheFailureRequest := httptest.NewRequest(http.MethodGet, "/optional", nil)
-	cacheFailureRequest.Header.Set("Authorization", "Bearer optional.pat.with-dots")
+	cacheFailureRequest := httptest.NewRequest(http.MethodGet, "/api/user/self", nil)
+	cacheFailureRequest.Header.Set("Authorization", "Bearer "+validScopedPAT)
 	cacheFailureResponse := httptest.NewRecorder()
 	router.ServeHTTP(cacheFailureResponse, cacheFailureRequest)
 	model.DB.Callback().Query().Remove(callbackName)
@@ -277,8 +266,8 @@ func TestTryUserAuthCredentialClassification(t *testing.T) {
 	sqlDB, err := model.DB.DB()
 	require.NoError(t, err)
 	require.NoError(t, sqlDB.Close())
-	databaseFailureRequest := httptest.NewRequest(http.MethodGet, "/optional", nil)
-	databaseFailureRequest.Header.Set("Authorization", "Bearer database-failure-key")
+	databaseFailureRequest := httptest.NewRequest(http.MethodGet, "/api/user/self", nil)
+	databaseFailureRequest.Header.Set("Authorization", "Bearer nap_database-failure-key")
 	databaseFailureResponse := httptest.NewRecorder()
 	router.ServeHTTP(databaseFailureResponse, databaseFailureRequest)
 	assert.Equal(t, http.StatusInternalServerError, databaseFailureResponse.Code)
@@ -341,8 +330,6 @@ func TestUserAuthAppliesAccessTokenRouteRules(t *testing.T) {
 		{name: "permission route with its scope", path: "/api/channel/", token: channel, status: http.StatusOK},
 		{name: "permission route without its scope", path: "/api/channel/", token: profile, status: http.StatusForbidden, code: "ACCESS_TOKEN_SCOPE_DENIED", reason: "scope_denied"},
 		{name: "expired token", path: "/api/user/self", token: expired, status: http.StatusUnauthorized, code: "ACCESS_TOKEN_EXPIRED", reason: "expired"},
-		{name: "legacy token before the deadline", path: "/api/user/self", token: legacy, status: http.StatusOK},
-		{name: "legacy token on a session route", path: "/api/user/access_tokens", token: legacy, status: http.StatusForbidden, code: "AUTH_SESSION_REQUIRED", reason: "session_required"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			response := middlewareBearerRequest(router, test.path, test.token)
@@ -381,8 +368,6 @@ func TestUserAuthAppliesAccessTokenRouteRules(t *testing.T) {
 	require.NoError(t, model.DB.Model(admin).Update("status", common.UserStatusEnabled).Error)
 	assert.Equal(t, http.StatusOK, middlewareBearerRequest(router, "/api/user/self", profile).Code, "disabling a user keeps the token")
 
-	require.NoError(t, model.DB.Model(&model.Option{}).Where(&model.Option{Key: "LegacyAccessTokenRetireAt"}).Update("value", fmt.Sprint(time.Now().Unix()-1)).Error)
-	require.NoError(t, model.EnsureLegacyAccessTokenRetireAt(time.Now().Unix()))
 	response = middlewareBearerRequest(router, "/api/user/self", legacy)
 	assert.Equal(t, http.StatusUnauthorized, response.Code)
 	assert.Contains(t, response.Body.String(), `"code":"ACCESS_TOKEN_LEGACY_RETIRED"`)
@@ -430,7 +415,6 @@ func TestAccessTokenIdentityAndSingleLookup(t *testing.T) {
 		legacyQuery int
 	}{
 		{name: "scoped token", token: scoped, stepUp: true, tokenTable: 1},
-		{name: "legacy token", token: legacy, legacyQuery: 1},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			queries = nil

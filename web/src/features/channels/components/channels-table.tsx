@@ -52,17 +52,16 @@ import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { getChannels, searchChannels, getGroups } from '../api'
+import { getGroups } from '../api'
 import {
   DEFAULT_PAGE_SIZE,
   CHANNEL_STATUS,
   CHANNEL_STATUS_OPTIONS,
 } from '../constants'
+import { useChannelListQuery } from '../hooks/use-channel-list-query'
 import { useChannelPriorityDrag } from '../hooks/use-channel-priority-drag'
 import { useChannelPriorityOrder } from '../hooks/use-channel-priority-order'
 import {
-  channelsQueryKeys,
-  aggregateChannelsByTag,
   getChannelTableRowId,
   isTagAggregateRow,
   getChannelTypeLabel,
@@ -192,7 +191,6 @@ export function ChannelsTable() {
   })
 
   // Determine whether to use search or regular list API
-  const shouldSearch = Boolean(globalFilter?.trim() || modelFilter.trim())
 
   const sortParams = useMemo(() => {
     const activeSort = sorting[0]
@@ -231,92 +229,28 @@ export function ChannelsTable() {
     [groupsData]
   )
 
-  // Fetch channels data
-  // eslint-disable-next-line @tanstack/query/exhaustive-deps
-  const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: channelsQueryKeys.list({
-      keyword: globalFilter,
-      model: modelFilter,
-      group:
-        groupFilter.length > 0 && !groupFilter.includes('all')
-          ? groupFilter[0]
-          : undefined,
-      status:
-        statusFilter.length > 0 && !statusFilter.includes('all')
-          ? statusFilter[0]
-          : undefined,
-      type:
-        typeFilter.length > 0 && !typeFilter.includes('all')
-          ? Number(typeFilter[0])
-          : undefined,
-      tag_mode: enableTagMode,
-      id_sort: idSort,
-      ...sortParams,
-      p: pagination.pageIndex + 1,
-      page_size: pagination.pageSize,
-    }),
-    queryFn: async () => {
-      if (shouldSearch) {
-        return requireServerSuccess(
-          await searchChannels({
-            keyword: globalFilter,
-            model: modelFilter,
-            group:
-              groupFilter.length > 0 && !groupFilter.includes('all')
-                ? groupFilter[0]
-                : undefined,
-            status:
-              statusFilter.length > 0 && !statusFilter.includes('all')
-                ? statusFilter[0]
-                : undefined,
-            type:
-              typeFilter.length > 0 && !typeFilter.includes('all')
-                ? Number(typeFilter[0])
-                : undefined,
-            tag_mode: enableTagMode,
-            id_sort: idSort,
-            ...sortParams,
-            p: pagination.pageIndex + 1,
-            page_size: pagination.pageSize,
-          })
-        )
-      } else {
-        return requireServerSuccess(
-          await getChannels({
-            group:
-              groupFilter.length > 0 && !groupFilter.includes('all')
-                ? groupFilter[0]
-                : undefined,
-            status:
-              statusFilter.length > 0 && !statusFilter.includes('all')
-                ? statusFilter[0]
-                : undefined,
-            type:
-              typeFilter.length > 0 && !typeFilter.includes('all')
-                ? Number(typeFilter[0])
-                : undefined,
-            tag_mode: enableTagMode,
-            id_sort: idSort,
-            ...sortParams,
-            p: pagination.pageIndex + 1,
-            page_size: pagination.pageSize,
-          })
-        )
-      }
-    },
-    placeholderData: (previousData) => previousData,
+  const channelQuery = useChannelListQuery({
+    keyword: globalFilter,
+    model: modelFilter,
+    group:
+      groupFilter.length > 0 && !groupFilter.includes('all')
+        ? groupFilter[0]
+        : undefined,
+    status:
+      statusFilter.length > 0 && !statusFilter.includes('all')
+        ? statusFilter[0]
+        : undefined,
+    type:
+      typeFilter.length > 0 && !typeFilter.includes('all')
+        ? Number(typeFilter[0])
+        : undefined,
+    tag_mode: enableTagMode,
+    id_sort: idSort,
+    ...sortParams,
+    p: pagination.pageIndex + 1,
+    page_size: pagination.pageSize,
   })
-
-  // Apply tag aggregation if tag mode is enabled
-  const channels = useMemo(() => {
-    const rawChannels = data?.data?.items || []
-
-    if (enableTagMode && rawChannels.length > 0) {
-      return aggregateChannelsByTag(rawChannels)
-    }
-
-    return rawChannels
-  }, [data, enableTagMode])
+  const { data, isLoading, isFetching, channels, refetch } = channelQuery
 
   const totalCount = data?.data?.total || 0
   const typeCounts = data?.data?.type_counts
@@ -522,13 +456,31 @@ export function ChannelsTable() {
         role='region'
         aria-label={t('Channels')}
         {...drag.rootEvents}
-        className='relative h-full min-h-0 data-[priority-dragging=true]:select-none data-[priority-dragging=true]:[&_[data-sortable-id]]:pointer-events-none'
+        className='relative flex h-full min-h-0 flex-col gap-2 data-[priority-dragging=true]:select-none data-[priority-dragging=true]:[&_[data-sortable-id]]:pointer-events-none'
       >
+        <div className='text-muted-foreground flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs'>
+          <span>
+            {t('Standard Relay')} · {t('Updated every minute')}
+          </span>
+          {data?.data?.in_flight_scope === 'redis' && (
+            <span>{t('Redis shared')}</span>
+          )}
+          {data?.data?.in_flight_scope === 'process' && (
+            <span>{t('Current process')}</span>
+          )}
+          <span>{t('Zero does not guarantee all requests have drained.')}</span>
+        </div>
+        {channelQuery.concurrencyUnavailable && (
+          <p role='status' className='text-destructive shrink-0 text-sm'>
+            {t('Failed to fetch in-flight requests')}
+          </p>
+        )}
         <DataTablePage
+          className='h-auto flex-1'
           table={table}
           columns={columns}
           isLoading={isLoading}
-          isFetching={isFetching}
+          isFetching={isFetching && channelQuery.isPlaceholderData}
           emptyTitle={t('No Channels Found')}
           emptyDescription={t(
             'No channels available. Create your first channel to get started.'
@@ -541,6 +493,7 @@ export function ChannelsTable() {
             <ChannelCard
               row={row}
               isSelected={isSelected}
+              isExpanded={row.getIsExpanded()}
               reorderEnabled={reorderActive}
             />
           )}
