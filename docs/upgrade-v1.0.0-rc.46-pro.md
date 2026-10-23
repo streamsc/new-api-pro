@@ -18,7 +18,7 @@
 
 ## 本地验证
 
-工具：Go 1.26.10（darwin/arm64）、Bun 1.3.14、Node 26.5.0。CI 仍固定 Bun 1.4.0，本次未在该版本本地重跑。
+工具：Go 1.26.10（darwin/arm64）、Bun 1.3.14、Node 26.5.0。CI 固定 Bun 1.4.0；后续容器验收已用该版本完成前端生产构建，前端测试仍为本机 Bun 1.3.14。
 日志和启动脚本在 `output/upgrade-rc46-20261023/`，仅含隔离测试凭据，不含生产配置。
 
 | 验证 | 命令/范围 | 结果 |
@@ -38,7 +38,8 @@
 | 前端测试 | `NODE_OPTIONS=--no-experimental-webstorage bun run test --maxWorkers=4` | 203 个文件、2402 项全部通过；默认并行度运行有 1 项 20 秒超时，降低并行度完整重跑通过，未修改超时阈值 |
 | PGO | `go build -pgo="$(go list -m -f '{{.Dir}}' github.com/Calcium-Ion/moejs)/default.pgo" -ldflags '-X github.com/QuantumNous/new-api/common.Version=v1.0.0-rc.46-pro.local' -o /tmp/new-api-pro-rc46-pgo .` | 通过 |
 | 多架构二进制 | `CGO_ENABLED=0 GOOS=linux GOARCH=amd64/arm64 go build`；各架构 Alpine 容器运行 `-version` | 通过；此 smoke 未注入版本，输出 v0.0.0；不等同完整 Dockerfile/签名/registry 门禁 |
-| Prometheus 规则 | Prometheus 3.2.1 `promtool test rules concurrency.test.yml` | 未完成：官方源和指定镜像代理下载均未完成，终止下载；没有规则测试通过的结论 |
+| 完整容器构建与启动 | `docker buildx build --platform linux/amd64` / `linux/arm64 --target release --load`，各架构执行容器验收脚本 | 通过；临时副本调整 Go/Debian 下载源，详细边界见下节 |
+| Prometheus 规则 | Prometheus 3.2.1 `promtool test rules concurrency.test.yml` | 通过（后续本地验收）：指定镜像代理下载成功，规则测试及示例配置检查通过，识别 8 条规则 |
 
 数据库 DSN 仅指向本次创建的 loopback 容器 `rc46-mysql` / `rc46-postgres`，测试创建隔离数据库；未连接线上数据库。真实 Release 启动脚本记录在上述 output 目录，保留建库、端口、命令和断言便于复跑。GORM core/mysql/postgres 驱动版本相对 rc.46 未单独调整。最低支持版本 MySQL 5.7.8/PostgreSQL 9.6 未另跑，不能据此声明所有旧版本验证通过。
 
@@ -55,4 +56,19 @@
 5. 不将取消等同免费：已完成流/图片按上游实际完成和用量结算；失败任务退还累计预扣。以实际供应商回包验证搜索、视频/图片实际数量和成本变化。
 6. Realtime、Responses WebSocket 和异步任务仍不进入标准 Relay 并发计数。分钟采样为观察值，零值不保证排空；停流/排空应结合实际连接和任务状态判断。
 
-尚未验证：真实供应商音频 SSE/任务创建轮询结算/Resend 与全部新增渠道、生产规模/长时间负载、ClickHouse 独立日志库、最低支持数据库版本、完整 Dockerfile 双架构镜像构建及 registry/Artifactory 导入、签名/Release 跨平台流程、浏览器人工端到端验收。没有生产凭据或部署授权，因此这些不能报告通过。多架构流水线保留原门禁，正式发布前必须执行。
+尚未验证：真实供应商音频 SSE/任务创建轮询结算/Resend 与全部新增渠道、生产规模/长时间负载、ClickHouse 独立日志库、最低支持数据库版本、原始下载源环境的 Dockerfile 构建、双架构 OCI 索引及 registry/Artifactory 导入、签名/Release 跨平台流程、浏览器人工端到端验收。没有生产凭据或部署授权，因此这些不能报告通过。多架构流水线保留原门禁，正式发布前必须执行。
+
+
+## 后续本地容器验收（2026-10-23）
+
+对代码提交 `79d5b54e0b84e33101d8c1025e83cbc01c303f12` 完成本地验收：
+
+- Prometheus 3.2.1 镜像经指定代理下载成功；`promtool test rules concurrency.test.yml` 通过，`promtool check config prometheus.example.yml` 通过，识别 8 条规则。
+- 用 `git archive` 建立隔离构建副本，按发布流程写入 `VERSION=v1.0.0-rc.46-pro.local`。本机 Docker exporter 不支持直接加载多架构 manifest list，因此分别构建、加载两个平台的 `release` target。
+- 原始网络路径下 Go 模块代理超时、Debian 下载约 32 KB/s；临时副本仅将 Go 下载命令设置为 `GOPROXY=https://goproxy.cn,direct`，并把 Debian apt 源切换到华为云镜像。依赖版本、基础镜像摘要、PGO 编译和 Debian 签名校验保持原样。仓库 Dockerfile 未改动，临时 Dockerfile 已随日志保存。最终本地镜像包含镜像源配置，因此是验收产物，不是正式发布镜像；不宣称原始网络路径构建通过。
+- Bun 1.4.0 前端构建和 Go 1.26.10 PGO 编译成功；amd64、arm64 完整运行层及最终 scratch 层构建成功。
+- 两个平台均实测 `-version` 输出正确、入口点为 `/new-api`、工作目录 `/data`、暴露端口 3000。启动后 `/api/status` 返回成功且版本一致，首页和引用的本地 JS/CSS 均返回成功；检查数据目录和 CA 证书非空。使用临时 SQLite，服务端口仅绑定 loopback，检查后删除验收容器。
+- arm64 镜像：`new-api-pro:rc46-local-arm64`，image ID `sha256:e4f4d37856b0084ad99cecf130f37c9c6581d683e4d64612ddc50d312ce2e122`。
+- amd64 镜像：`new-api-pro:rc46-local-amd64`，image ID `sha256:a52e70311d08197d5e947bb526fcd76cf43b44f1dcd04c9d9e60ab6bcadd8c32`。
+
+完整构建日志、Prometheus 日志、镜像 inspect、状态响应和可复跑脚本在 `output/upgrade-rc46-20261023/container-validation/`。本次未改业务代码、未推送镜像或分支、未签名、未创建 Release、未部署生产。真实供应商、浏览器人工验收、OCI 索引/registry/签名等此前列出的门禁仍待执行。
