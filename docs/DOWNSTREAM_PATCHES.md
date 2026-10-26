@@ -10,13 +10,13 @@
 
 发布过的 tag 不移动，旧 release 分支不改写。上游发布新版本时创建新的 release 分支，不把旧 release 分支 merge 到新分支。
 
-## rc.46 local upgrade candidate
+## rc.46 release
 
-`upgrade/v1.0.0-rc.46` 基于上游 `7d8b91268dab69d7150f345c448b5e250163146a`。
-通过三方集成保留 Pro 补丁，最终保存为以 rc.46 为父提交的本地线性候选；原 rc.40 分支和发布标签保持不变。
+`release/v1.0.0-rc.46-pro` 是当前 Pro 发布主线及仓库默认分支，由已验收的 `upgrade/v1.0.0-rc.46` 创建，基于上游 `7d8b91268dab69d7150f345c448b5e250163146a`。
+通过三方集成保留 Pro 补丁，最终保存为以 rc.46 为父提交的线性补丁；原 rc.40 分支和发布标签保持不变。
 Go 1.26.10、moejs PGO、tokenkit 已接入，发布前置测试仍包含独立 RelayKit/tokenkit。
 旧面板令牌认证和 30 天退役窗口已移除，升级立即拒绝旧凭据；迁移和验证边界见
-[rc.46 升级说明](upgrade-v1.0.0-rc.46-pro.md)。本候选未推送、发布或部署。
+[rc.46 升级说明](upgrade-v1.0.0-rc.46-pro.md)。`v1.0.0-rc.46-pro.1` 已于 2026-10-26 发布并部署至 `new-api-2`，正式 OCI、签名及生产切换验收记录已纳入发布分支。`upgrade/v1.0.0-rc.46` 保留为升级过程记录，不再作为发布主线。
 
 ## rc.40 upgrade patch queue
 
