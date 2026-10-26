@@ -125,3 +125,18 @@
 - `go test ./middleware ./service ./controller ./relay -run 'Test(UserAuthRejectsStoredLegacyToken|DashboardAccessTokenClassification|.*ChannelConcurrency.*|.*BillingSession.*|.*Cancellation.*)' -count=1` 成功；middleware/service/controller 有匹配测试，relay 无匹配测试。真实 Redis/Sentinel 专用集成测试本轮未配置环境，依据前述已完成的真实实例验证，不重复声称重跑。
 
 正式 registry/OCI 索引/签名及跨平台 Release 等未完成门禁仍按前述记录保留，不能据本地候选宣称生产发布完成。
+
+## 正式发布与 new-api-2 同机 OCI 隔离验收（2026-10-26）
+
+用户授权发布后，已为提交 `55e29590a82a6004c8d3973cf18c5eafa8996dfe` 创建并推送 annotated tag `v1.0.0-rc.46-pro.1`，未移动既有标签。
+
+- [Docker 工作流 40257961459](https://github.com/streamsc/new-api-pro/actions/runs/40257961459) 全部通过：Go 测试、原始 Dockerfile 多架构构建、OCI index/provenance 关联、运行配置、amd64/arm64 启动版本断言、两个平台及 index 签名。
+- [跨平台 Release 工作流 40257961710](https://github.com/streamsc/new-api-pro/actions/runs/40257961710) 全部通过；Linux amd64/arm64、macOS、Windows 二进制和校验和已发布到 [预发布版本](https://github.com/streamsc/new-api-pro/releases/tag/v1.0.0-rc.46-pro.1)。
+- 正式镜像 `ghcr.io/streamsc/new-api-pro:v1.0.0-rc.46-pro.1`，OCI index 摘要 `sha256:c936878d0489f1b5e85e2d2afd803f77e838c2e6c2020d730c2f1832fbf0aa01`；amd64 为 `sha256:a271712be2a272a162f233c3f7df12572403de0f613db717bcf4e21c00eb53d5`，arm64 为 `sha256:d33f2ed133c96020a2d98013b609f3c497c0e59f77532c2e415e4f06285394e3`。
+- 本地重新读取 registry 原始 index：OCI media type、两个平台镜像、两个 unknown/unknown attestation manifest 及 subject digest 对应关系均通过。
+- 在 `ubuntu@129.146.74.208`（new-api-2 所在 ARM64 主机）直接从 GHCR 按 index 摘要拉取成功；Docker 正确选择 arm64，镜像 revision/version 标签匹配正式提交和版本。
+- 远端 Cosign v3.1.4 下载后核对官方 SHA-256。分别验证 index、amd64、arm64 三个摘要的签名，限定证书身份为本仓库 `docker-build.yml@refs/tags/v1.0.0-rc.46-pro.1`、OIDC issuer 为 `https://token.actions.githubusercontent.com`，证书、claims 和透明日志 inclusion 均通过。
+- 同机一次性容器只绑定 loopback 随机端口，独立 SQLite，限制 512 MiB/1 CPU；`-version`、`/api/status` 版本、首页与 6 个 JS/CSS 资源通过。未连接生产数据库/Redis，未发起供应商调用。验收容器已删除，正式镜像缓存保留。
+- `new-api-2` 验收前后容器 ID、启动时间 `2026-09-30T08:59:03.869227895Z`、原 rc.40 镜像及 healthy 状态完全一致，未重启或替换。此次是同机隔离验收，不是生产切换或生产库升级。
+
+证据及脚本：`output/upgrade-rc46-20261026/oci-acceptance/`，包含工作流日志/状态、原始 index、三份签名验证结果和远端 smoke 结果；远端 `/home/ubuntu/rc46-oci-acceptance/` 保留无凭据脚本及验证结果。上述正式 OCI/签名/跨平台门禁已完成，前述真实音频/图片/异步任务、长负载、ClickHouse、最低数据库版本和未覆盖 UI 等边界仍然成立；未验证 Artifactory 导入。
