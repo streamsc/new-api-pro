@@ -40,6 +40,9 @@ var responsesWSTestUserSequence atomic.Int64
 
 func setupResponsesWSRequestTest(t *testing.T) (*model.User, *model.Token) {
 	t.Helper()
+	// Rejections translate client-facing errors, just as after server startup.
+	// Initialize here so individual tests do not depend on another test running first.
+	require.NoError(t, i18n.Init())
 	previousDB := model.DB
 	previousLogDB := model.LOG_DB
 	previousType := common.MainDatabaseType()
@@ -960,7 +963,7 @@ func TestResponsesStreamOutcomesPreserveAccounting(t *testing.T) {
 				}
 				require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","event_id":"limited","stream_id":"planner","model":"ws-billing","input":"limited"}`)))
 				limited := readResponsesWSTestEvent(t, fixture.client)
-				assert.Equal(t, float64(http.StatusTooManyRequests), limited["status"])
+				assert.Equal(t, float64(http.StatusTooManyRequests), limited["status"], "unexpected limit response: %v", limited)
 				assert.Equal(t, "planner", limited["stream_id"])
 				assert.Equal(t, "limited", limited["event_id"])
 				fixture.closeAndWait(t)
