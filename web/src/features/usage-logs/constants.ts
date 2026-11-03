@@ -357,3 +357,5 @@ export const DISPLAYABLE_LOG_TYPES = [0, 2, 5, 6] as const
  * Log types that show timing info
  */
 export const TIMING_LOG_TYPES = [2, 5] as const
+
+export const DEFAULT_COMMON_LOG_COLUMN_VISIBILITY = { user_agent: false }

@@ -420,7 +420,7 @@ func newResponsesWSBillingTest(t *testing.T, expression string, handle func(*web
 	gateway := httptest.NewServer(engine)
 	fixture.gatewayURL = gateway.URL
 	t.Cleanup(gateway.Close)
-	client, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(gateway.URL, "http")+"/v1/responses", http.Header{"Authorization": []string{"Bearer sk-" + token.Key}})
+	client, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(gateway.URL, "http")+"/v1/responses", http.Header{"Authorization": []string{"Bearer sk-" + token.Key}, "User-Agent": []string{"StreamClient/1"}})
 	require.NoError(t, err)
 	fixture.client = client
 	t.Cleanup(func() { fixture.closeAndWait(t) })
@@ -938,6 +938,7 @@ func TestResponsesStreamOutcomesPreserveAccounting(t *testing.T) {
 					require.NoError(t, err)
 					request.Header.Set("Authorization", "Bearer sk-"+fixture.token.Key)
 					request.Header.Set("Content-Type", "application/json")
+					request.Header.Set("User-Agent", "StreamClient/1")
 					response, err := (&http.Client{Timeout: 3 * time.Second}).Do(request)
 					require.NoError(t, err)
 					body, err := io.ReadAll(response.Body)
@@ -973,6 +974,7 @@ func TestResponsesStreamOutcomesPreserveAccounting(t *testing.T) {
 				require.Len(t, logs, len(quotas))
 				var other map[string]any
 				require.NoError(t, common.UnmarshalJsonStr(logs[0].Other, &other))
+				assert.Equal(t, "StreamClient/1", other["user_agent"])
 				stream := other["stream_status"].(map[string]any)
 				if tc.failed {
 					assert.Equal(t, "error", stream["status"])

@@ -78,6 +78,7 @@ import { LogCostDisplay } from '../log-cost-display'
 import { ModelBadge } from '../model-badge'
 import { TimingMetricsCell, StreamTpsCell } from '../timing-metrics-cell'
 import { useUsageLogsContext } from '../usage-logs-provider'
+import { UserAgentCell } from '../user-agent-cell'
 
 interface DetailSegment {
   text: string
@@ -803,6 +804,13 @@ export function useCommonLogsColumns(
         },
       },
 
+      {
+        id: 'user_agent',
+        header: t('UA'),
+        size: 240,
+        accessorFn: (log) => parseLogOther(log.other)?.user_agent ?? '',
+        cell: ({ getValue }) => <UserAgentCell value={getValue<string>()} />,
+      },
       {
         accessorKey: 'content',
         header: t('Details'),

@@ -176,6 +176,7 @@ export interface LogOtherData {
   }
   // Login audit fields (type=7); visible to the log owner
   login_method?: string
+  /** Entry client UA for synchronous/streaming usage, or historical login UA. */
   user_agent?: string
   request_path?: string
   request_conversion?: string[]

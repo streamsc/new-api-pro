@@ -501,3 +501,16 @@ test.each(['missing schema', 'unsupported expression', 'unknown tier'])(
     )
   }
 )
+
+test.each([2, 5])(
+  'usage details show the saved UA for log type %s',
+  async (type) => {
+    fireEvent.click(renderPreview({ user_agent: 'EntryClient/1' }, false, type))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('User Agent')).toBeVisible()
+    expect(within(dialog).getByText('EntryClient/1')).toBeVisible()
+    expect(
+      within(dialog).getByRole('button', { name: 'Copy to clipboard' })
+    ).toBeVisible()
+  }
+)

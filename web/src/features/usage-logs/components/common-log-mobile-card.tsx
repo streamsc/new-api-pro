@@ -126,6 +126,7 @@ export function CommonLogMobileCard<TData>(props: {
   const visibleMetadata = metadata.filter((id) => fields[id].visible)
   const costCell = props.cells.get('quota')
   const contentCell = props.cells.get('content')
+  const userAgentCell = props.cells.get('user_agent')
   const channelCell = props.cells.get('channel')
   const cacheRead = other?.cache_tokens || 0
   const cacheWrite =
@@ -217,6 +218,17 @@ export function CommonLogMobileCard<TData>(props: {
             </div>
           )}
       </div>
+      {userAgentCell && (
+        <div className='flex min-w-0 items-center gap-2 [&_button]:max-w-full'>
+          <span className='text-muted-foreground shrink-0 text-xs'>
+            {t('UA')}
+          </span>
+          {flexRender(
+            userAgentCell.column.columnDef.cell,
+            userAgentCell.getContext()
+          )}
+        </div>
+      )}
       {visibleMetadata.length > 0 && (
         <div className='grid min-w-0 grid-cols-2 gap-x-4 gap-y-0.5'>
           {visibleMetadata.map((id) => {

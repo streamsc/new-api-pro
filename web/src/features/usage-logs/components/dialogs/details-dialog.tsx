@@ -52,6 +52,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { CopyButton } from '@/components/copy-button'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
@@ -662,6 +663,23 @@ export function DetailsDialog(props: DetailsDialogProps) {
               label={t('Request ID')}
               value={props.log.request_id}
               mono
+            />
+          )}
+          {showTiming && (
+            <DetailRow
+              label={t('User Agent')}
+              value={
+                other?.user_agent ? (
+                  <span className='flex min-w-0 items-start gap-1'>
+                    <span className='min-w-0 break-all whitespace-pre-wrap'>
+                      {other.user_agent}
+                    </span>
+                    <CopyButton value={other.user_agent} className='size-6' />
+                  </span>
+                ) : (
+                  '—'
+                )
+              }
             />
           )}
           {props.log.upstream_request_id && (

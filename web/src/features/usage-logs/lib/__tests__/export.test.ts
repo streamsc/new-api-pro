@@ -112,6 +112,7 @@ describe('usage log CSV export', () => {
       '203.0.113.9',
       'req-1',
       '',
+      '',
     ])
   })
 
@@ -141,3 +142,29 @@ describe('usage log CSV export', () => {
     ).toBe(`"'=HYPERLINK(""x"")","-12.5","'+cmd","a""b","two\nlines"\r\n`)
   })
 })
+
+test.each([false, true])(
+  'UA export preserves text and escapes formulas (admin=%s)',
+  (isAdmin) => {
+    const t = (key: string) => key
+    for (const value of [
+      'Client/1.0',
+      '=HYPERLINK("evil")',
+      '<script>text</script>',
+      '',
+      undefined,
+    ]) {
+      const log = {
+        ...consumeLog,
+        other: JSON.stringify({ user_agent: value }),
+      }
+      const header = getLogCsvHeader(isAdmin, t)
+      const row = getLogCsvRow(log, isAdmin, t)
+      expect(header).toContain('UA')
+      expect(row[header.indexOf('UA')]).toBe(value ?? '')
+      if (value?.startsWith('=')) {
+        expect(toCsvLine(row)).toContain(`"'=HYPERLINK(""evil"")"`)
+      }
+    }
+  }
+)
