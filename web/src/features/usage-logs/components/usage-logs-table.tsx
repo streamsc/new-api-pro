@@ -39,6 +39,7 @@ import { useAuthStore } from '@/stores/auth-store'
 
 import {
   DEFAULT_LOGS_DATA,
+  DEFAULT_COMMON_LOG_COLUMN_VISIBILITY,
   LOG_TYPE_ALL_VALUE,
   LOG_TYPE_ENUM,
 } from '../constants'
@@ -211,6 +212,10 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     data: logs as Record<string, unknown>[],
     columns: columns as ColumnDef<Record<string, unknown>>[],
     columnFilters,
+    initialColumnVisibility:
+      logCategory === 'common'
+        ? DEFAULT_COMMON_LOG_COLUMN_VISIBILITY
+        : undefined,
     columnVisibilityStorageKey: getColumnVisibilityStorageKey(
       logCategory,
       viewAccess

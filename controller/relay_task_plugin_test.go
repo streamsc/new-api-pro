@@ -568,6 +568,7 @@ export function buildQueryRequest(){throw new Error("completed submissions must 
 			ch := model.Channel{Name: "test provider", Type: constant.ChannelTypeTaskPlugin}
 			require.NoError(t, db.Create(&ch).Error)
 			c := taskSubmissionTestContext()
+			c.Request.Header.Set("User-Agent", "AsyncTaskClient/1")
 			c.Set("group", "default")
 			c.Set("username", user.Username)
 			c.Set("task_request", map[string]any{"model": "document-model"})
@@ -610,6 +611,10 @@ export function buildQueryRequest(){throw new Error("completed submissions must 
 			assert.Equal(t, want, logs[0].Quota)
 			var other map[string]any
 			require.NoError(t, common.UnmarshalJsonStr(logs[0].Other, &other))
+			assert.NotContains(t, other, "user_agent")
+			storedTask, err := common.Marshal(stored)
+			require.NoError(t, err)
+			assert.NotContains(t, string(storedTask), "AsyncTaskClient/1")
 			if tc.status == "SUCCESS" {
 				assert.Equal(t, tc.count, other["usage_facts"].(map[string]any)["units"])
 			}

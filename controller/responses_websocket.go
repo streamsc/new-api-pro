@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -40,6 +41,7 @@ var responsesWSRequestEngine = sync.OnceValue(func() *gin.Engine {
 		c.Next()
 	}, middleware.BodyStorageCleanup(), middleware.TokenAuth(), middleware.ModelRequestRateLimit(), func(c *gin.Context) {
 		state := c.Request.Context().Value(responsesWSRequestContextKey{}).(*responsesWSRequestState)
+		model.CaptureUsageUserAgent(c)
 		state.apiError = state.handle(c)
 		if state.apiError != nil {
 			status := state.apiError.StatusCode

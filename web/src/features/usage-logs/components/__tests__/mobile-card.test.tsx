@@ -337,3 +337,22 @@ it('shows loading placeholders without displaying stale log fields', () => {
     screen.queryByRole('button', { name: /^Model:/ })
   ).not.toBeInTheDocument()
 })
+
+it('mobile UA follows column visibility and reveals the complete saved text on tap', async () => {
+  const user = userEvent.setup()
+  const value = `MobileClient/1 ${longName}`
+  const logs = [{ ...log, other: JSON.stringify({ user_agent: value }) }]
+  const hidden = renderLogs({ logs, visibility: { user_agent: false } })
+  expect(
+    screen.queryByRole('button', { name: 'User Agent' })
+  ).not.toBeInTheDocument()
+  hidden.unmount()
+  renderLogs({ logs, visibility: { user_agent: true } })
+  await user.click(screen.getByRole('button', { name: 'User Agent' }))
+  const dialog = await screen.findByRole('dialog', { name: 'User Agent' })
+  expect(within(dialog).getByText(value)).toBeVisible()
+  await user.click(
+    within(dialog).getByRole('button', { name: 'Copy to clipboard' })
+  )
+  expect(await navigator.clipboard.readText()).toBe(value)
+})
