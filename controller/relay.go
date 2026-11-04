@@ -162,6 +162,15 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 	}()
 
+	if relayFormat != types.RelayFormatOpenAIRealtime {
+		release, admissionError := relay.AdmitUserResources(c, relayInfo)
+		if admissionError != nil {
+			newAPIError = admissionError
+			return
+		}
+		defer release()
+	}
+
 	generalSettings := operation_setting.GetGeneralSetting()
 	if relayFormat == types.RelayFormatClaude && relayInfo.IsStream && generalSettings.PingIntervalEnabled {
 		stopKeepAlive := helper.StartStreamKeepAlive(c, time.Duration(generalSettings.PingIntervalSeconds)*time.Second)
@@ -245,15 +254,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 
 		if activeConcurrency != nil {
-			leaseLost := activeConcurrency.Lost()
 			activeConcurrency.Release()
 			activeConcurrency = nil
 			c.Request = c.Request.WithContext(requestContext)
-			if leaseLost {
-				newAPIError = channelConcurrencyError(service.ErrChannelConcurrencyStore)
-				suppressErrorBody = c.Writer.Written()
-				break
-			}
 		}
 
 		if newAPIError == nil {

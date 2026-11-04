@@ -7350,6 +7350,23 @@
     "Zero does not guarantee all requests have drained.": "Ноль не гарантирует завершение всех запросов.",
     "Failed to fetch in-flight requests": "Не удалось получить число текущих запросов",
     "Failed to load channels": "Не удалось загрузить каналы",
-    "Refresh channels": "Обновить каналы"
+    "Refresh channels": "Обновить каналы",
+    "My API resources": "My API resources",
+    "Input TPM (estimated, last 60 seconds)": "Input TPM (estimated, last 60 seconds)",
+    "RPM (last 60 seconds)": "RPM (last 60 seconds)",
+    "Near or at limit": "Near or at limit",
+    "Elevated usage": "Elevated usage",
+    "Resource usage temporarily unavailable": "Resource usage temporarily unavailable",
+    "Shared across all API keys and supported models. Async tasks and Realtime are excluded. Contact your administrator to adjust limits.": "Shared across all API keys and supported models. Async tasks and Realtime are excluded. Contact your administrator to adjust limits.",
+    "Single process counters reset on restart.": "Single process counters reset on restart.",
+    "User resource limits": "User resource limits",
+    "Defaults and user overrides": "Defaults and user overrides",
+    "Reason for change": "Reason for change",
+    "Invalid resource limits configuration": "Invalid resource limits configuration",
+    "Set enabled=false for unlimited; enabled=true with limit=0 blocks new requests. Missing user fields inherit defaults. User overrides are keyed by numeric user ID. Changes preserve counters and propagate within the option sync interval (60 seconds by default).": "Set enabled=false for unlimited; enabled=true with limit=0 blocks new requests. Missing user fields inherit defaults. User overrides are keyed by numeric user ID. Changes preserve counters and propagate within the option sync interval (60 seconds by default).",
+    "A reason of 1 to 1000 characters is required": "A reason of 1 to 1000 characters is required",
+    "Use the user resource settings endpoint with a change reason": "Use the user resource settings endpoint with a change reason",
+    "Concurrency": "Concurrency",
+    "Normal": "Normal"
   }
 }

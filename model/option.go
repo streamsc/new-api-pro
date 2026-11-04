@@ -232,6 +232,10 @@ func SyncOptions(frequency int) {
 }
 
 func validateOptionValue(key string, value string) error {
+	if key == setting.UserResourcesOption {
+		_, err := setting.ParseUserResourcesConfig(value)
+		return err
+	}
 	if err := operation_setting.ValidateQuotaOption(key, value); err != nil {
 		return err
 	}

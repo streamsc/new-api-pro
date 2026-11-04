@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/alicebob/miniredis/v2"
@@ -18,11 +19,11 @@ func useMemoryChannelConcurrency(t *testing.T) {
 	previousRedisEnabled := common.RedisEnabled
 	common.RedisEnabled = false
 	memoryChannelConcurrency.Lock()
-	memoryChannelConcurrency.counts = make(map[int]int)
+	memoryChannelConcurrency.slots = make(map[int]map[string]time.Time)
 	memoryChannelConcurrency.Unlock()
 	t.Cleanup(func() {
 		memoryChannelConcurrency.Lock()
-		memoryChannelConcurrency.counts = make(map[int]int)
+		memoryChannelConcurrency.slots = make(map[int]map[string]time.Time)
 		memoryChannelConcurrency.Unlock()
 		common.RedisEnabled = previousRedisEnabled
 	})

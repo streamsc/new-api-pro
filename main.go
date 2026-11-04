@@ -350,6 +350,10 @@ func InitResources() error {
 		return err
 	}
 
+	if err = service.InitResourceCounters(); err != nil {
+		return err
+	}
+
 	perfmetrics.Init()
 
 	// 启动系统监控

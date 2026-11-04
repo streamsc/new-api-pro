@@ -199,6 +199,11 @@ func UpdateOption(c *gin.Context) {
 	default:
 		option.Value = fmt.Sprintf("%v", option.Value)
 	}
+	if option.Key == setting.UserResourcesOption {
+		common.ApiError(c, errors.New("Use the user resource settings endpoint with a change reason"))
+		return
+	}
+
 	switch option.Key {
 	case "QuotaForInviter", "QuotaForInvitee":
 		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {

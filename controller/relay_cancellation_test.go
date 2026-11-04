@@ -112,6 +112,11 @@ func TestRelayCancellationAfterHeadersStopsRetry(t *testing.T) {
 	counts, err := service.GetChannelConcurrencyCounts(context.Background(), []int{channel.Id})
 	require.NoError(t, err)
 	assert.Zero(t, counts[channel.Id], "canceled relay must release its lease")
+	resourceUsage, resourceErr := service.GetUserResourceUsage(context.Background(), user.Id)
+	require.NoError(t, resourceErr)
+	assert.Zero(t, resourceUsage.Concurrency)
+	assert.Equal(t, 1, resourceUsage.RPM)
+	assert.Positive(t, resourceUsage.InputTPM)
 }
 
 // Cancel only when the response handler starts reading, after Client.Do returned.

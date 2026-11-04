@@ -6712,7 +6712,7 @@
     "Unknown": "未知",
     "Unknown device": "未知设备",
     "Unknown version": "未知版本",
-    "Unlimited": "无限制",
+    "Unlimited": "未限制",
     "Unlimited Quota": "无限配额",
     "Unrecognized status code": "无法识别的状态码",
     "Unsaved changes": "未保存的更改",
@@ -7350,6 +7350,23 @@
     "Zero does not guarantee all requests have drained.": "零值不保证全部请求已排空。",
     "Failed to fetch in-flight requests": "在途请求数获取失败",
     "Failed to load channels": "渠道加载失败",
-    "Refresh channels": "刷新渠道"
+    "Refresh channels": "刷新渠道",
+    "My API resources": "用户容量限制",
+    "Input TPM (estimated, last 60 seconds)": "输入 TPM（估算，最近 60 秒）",
+    "RPM (last 60 seconds)": "RPM（最近 60 秒）",
+    "Near or at limit": "接近或达到上限",
+    "Elevated usage": "使用较高",
+    "Resource usage temporarily unavailable": "额度统计暂不可用",
+    "Shared across all API keys and supported models. Async tasks and Realtime are excluded. Contact your administrator to adjust limits.": "全部 API Key 和受支持模型共用额度，不包含异步任务和 Realtime。调整额度请联系管理员。",
+    "Single process counters reset on restart.": "当前使用单进程计数，重启后重置。",
+    "User resource limits": "用户调用额度",
+    "Defaults and user overrides": "全局默认值与用户覆盖",
+    "Reason for change": "变更原因",
+    "Invalid resource limits configuration": "额度配置无效",
+    "Set enabled=false for unlimited; enabled=true with limit=0 blocks new requests. Missing user fields inherit defaults. User overrides are keyed by numeric user ID. Changes preserve counters and propagate within the option sync interval (60 seconds by default).": "enabled=false 表示未限制；enabled=true 且 limit=0 表示禁止新请求。用户未设置的字段继承全局默认值，users 使用数字用户 ID 作为键。调整不会清零计数，其他节点在配置同步周期内生效（默认 60 秒）。",
+    "A reason of 1 to 1000 characters is required": "请填写 1 到 1000 字符的变更原因",
+    "Use the user resource settings endpoint with a change reason": "请通过用户调用额度设置入口修改，并提供变更原因",
+    "Concurrency": "并发",
+    "Normal": "正常"
   }
 }

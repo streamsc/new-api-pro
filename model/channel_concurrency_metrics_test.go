@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -96,6 +98,83 @@ func TestChannelConcurrencyConfigProjection(t *testing.T) {
 			rows, err = GetChannelConcurrencyConfigs(context.Background())
 			require.NoError(t, err)
 			assert.Equal(t, []ChannelConcurrencyConfig{{ID: 1, Setting: &updated}}, rows)
+		})
+	}
+}
+
+func TestUserResourceOptionsDatabaseMatrix(t *testing.T) {
+	for _, driver := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(driver, func(t *testing.T) {
+			var dialect gorm.Dialector
+			switch driver {
+			case "sqlite":
+				dialect = sqlite.Open(filepath.Join(t.TempDir(), "resources.db"))
+			case "mysql":
+				dsn := os.Getenv("CONCURRENCY_TEST_MYSQL_DSN")
+				if dsn == "" {
+					t.Skip("dedicated MySQL not configured")
+				}
+				dialect = mysql.Open(dsn)
+			case "postgres":
+				dsn := os.Getenv("CONCURRENCY_TEST_POSTGRES_DSN")
+				if dsn == "" {
+					t.Skip("dedicated PostgreSQL not configured")
+				}
+				dialect = postgres.Open(dsn)
+			}
+			db, err := gorm.Open(dialect, &gorm.Config{})
+			require.NoError(t, err)
+			sqlDB, err := db.DB()
+			require.NoError(t, err)
+			defer sqlDB.Close()
+			previousDB := DB
+			DB = db
+			defer func() { DB = previousDB }()
+			previousType := common.MainDatabaseType()
+			common.SetMainDatabaseType(common.DatabaseType(driver))
+			defer common.SetMainDatabaseType(previousType)
+			common.OptionMapRWMutex.Lock()
+			previousMap := common.OptionMap
+			common.OptionMap = map[string]string{}
+			common.OptionMapRWMutex.Unlock()
+			defer func() {
+				common.OptionMapRWMutex.Lock()
+				common.OptionMap = previousMap
+				common.OptionMapRWMutex.Unlock()
+			}()
+			require.False(t, db.Migrator().HasTable(&Option{}), "use a dedicated empty test database")
+			require.NoError(t, db.AutoMigrate(&Option{}))
+			defer db.Migrator().DropTable(&Option{})
+			require.NoError(t, db.Create(&Option{Key: "Unrelated", Value: "preserve"}).Error)
+			for range 2 {
+				require.NoError(t, db.AutoMigrate(&Option{}))
+			}
+			before, err := UpdateUserResourcesConfig(`{"defaults":{"rpm":{"enabled":true,"limit":10}},"users":{}}`)
+			require.NoError(t, err)
+			assert.False(t, before.Defaults.RPM.Enabled)
+			// Another node's local cache can be stale; audit must use the database value.
+			common.OptionMapRWMutex.Lock()
+			common.OptionMap[setting.UserResourcesOption] = ""
+			common.OptionMapRWMutex.Unlock()
+			before, err = UpdateUserResourcesConfig(`{"defaults":{"rpm":{"enabled":true,"limit":0}},"users":{"7":{"rpm":{"enabled":false,"limit":0}}}}`)
+			require.NoError(t, err)
+			assert.Equal(t, 10, before.Defaults.RPM.Limit)
+			config, err := setting.CurrentUserResourcesConfig()
+			require.NoError(t, err)
+			assert.True(t, config.ForUser(8).RPM.Enabled)
+			assert.False(t, config.ForUser(7).RPM.Enabled)
+			_, err = UpdateUserResourcesConfig(`{"defaults":{"rpm":{"limit":-1}}}`)
+			require.Error(t, err)
+			var option Option
+			require.NoError(t, db.First(&option, Option{Key: "Unrelated"}).Error)
+			assert.Equal(t, "preserve", option.Value)
+			var version string
+			query := "SELECT version()"
+			if driver == "sqlite" {
+				query = "SELECT sqlite_version()"
+			}
+			require.NoError(t, db.Raw(query).Scan(&version).Error)
+			t.Logf("database version: %s", version)
 		})
 	}
 }

@@ -1216,3 +1216,96 @@ CREATE TABLE IF NOT EXISTS logs (
 ENGINE = MergeTree()
 PARTITION BY toYYYYMM(toDateTime(created_at))
 ORDER BY (created_at, request_id)`
+
+func TestUserResourceLimitsRequireRootAndAuditBeforeAfter(t *testing.T) {
+	user, _ := setupAccessTokenAudit(t)
+	_, credential := createAccessTokenTestSession(t, user.Id, "resource-admin")
+	previousMap := common.OptionMap
+	common.OptionMap = map[string]string{}
+	defer func() { common.OptionMap = previousMap }()
+	engine := gin.New()
+	engine.Use(middleware.RequestId())
+	engine.PUT("/api/option/user_resources", middleware.RootAuth(), UpdateUserResourcesConfig)
+	body := `{"config":{"defaults":{"rpm":{"enabled":true,"limit":10}},"users":{}},"reason":"capacity review"}`
+	response := accessTokenRequest(engine, http.MethodPut, "/api/option/user_resources", credential, "", body)
+	require.Equal(t, http.StatusForbidden, response.Code, "ordinary admin cannot change root options")
+	require.NoError(t, model.DB.Model(user).Update("role", common.RoleRootUser).Error)
+	_, credential = createAccessTokenTestSession(t, user.Id, "resource-root")
+	response = accessTokenRequest(engine, http.MethodPut, "/api/option/user_resources", credential, "", body)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	require.Contains(t, response.Body.String(), `"success":true`)
+	var audit model.AuditLog
+	require.NoError(t, model.LOG_DB.Where("action = ?", "user_resource_limits.update").First(&audit).Error)
+	encoded, err := common.Marshal(audit)
+	require.NoError(t, err)
+	require.Contains(t, string(encoded), "capacity review")
+	require.Contains(t, string(encoded), "before")
+	require.Contains(t, string(encoded), "after")
+}
+
+func TestUserResourceSelfEndpointAuthenticatesAndIgnoresOtherUserID(t *testing.T) {
+	user, _ := setupAccessTokenAudit(t)
+	_, credential := createAccessTokenTestSession(t, user.Id, "resource-self")
+	previousMap := common.OptionMap
+	common.OptionMap = map[string]string{}
+	defer func() { common.OptionMap = previousMap }()
+	engine := gin.New()
+	engine.GET("/api/user/self/resources", middleware.UserAuth(), GetSelfResources)
+	anonymous := accessTokenRequest(engine, http.MethodGet, "/api/user/self/resources", "", "", "")
+	require.Equal(t, http.StatusUnauthorized, anonymous.Code)
+	response := accessTokenRequest(engine, http.MethodGet, "/api/user/self/resources?user_id=999999", credential, "", "")
+	require.Equal(t, http.StatusOK, response.Code)
+	var body struct {
+		Data struct {
+			UserID   int `json:"user_id"`
+			Username string
+		}
+	}
+	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
+	assert.Equal(t, user.Id, body.Data.UserID)
+	assert.Equal(t, user.Username, body.Data.Username)
+}
+
+func TestUserResourceEndpointsEnforceAccessTokenScopes(t *testing.T) {
+	for _, tc := range []struct {
+		name, method, path, scope string
+		role, want                int
+	}{
+		{"self read", "GET", "/api/user/self/resources?user_id=999999", "profile:read", common.RoleCommonUser, http.StatusOK},
+		{"self missing scope", "GET", "/api/user/self/resources", "usage:read", common.RoleCommonUser, http.StatusForbidden},
+		{"root config read", "GET", "/api/option/user_resources", "option:read", common.RoleRootUser, http.StatusOK},
+		{"root config missing scope", "GET", "/api/option/user_resources", "profile:read", common.RoleRootUser, http.StatusForbidden},
+		{"read cannot write", "PUT", "/api/option/user_resources", "option:read", common.RoleRootUser, http.StatusForbidden},
+		{"root config write", "PUT", "/api/option/user_resources", "option:write", common.RoleRootUser, http.StatusOK},
+		{"admin cannot read root config", "GET", "/api/option/user_resources", "option:read", common.RoleAdminUser, http.StatusForbidden},
+		{"admin cannot write root config", "PUT", "/api/option/user_resources", "option:write", common.RoleAdminUser, http.StatusForbidden},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			user, _ := setupAccessTokenAudit(t)
+			require.NoError(t, model.DB.Model(user).Update("role", tc.role).Error)
+			previous := common.OptionMap
+			common.OptionMap = map[string]string{}
+			t.Cleanup(func() { common.OptionMap = previous })
+			credential, _ := createScopedAccessToken(t, user.Id, 0, tc.scope)
+			engine := gin.New()
+			engine.Use(middleware.RequestId())
+			engine.GET("/api/user/self/resources", middleware.UserAuth(), GetSelfResources)
+			engine.GET("/api/option/user_resources", middleware.RootAuth(), GetUserResourcesConfig)
+			engine.PUT("/api/option/user_resources", middleware.RootAuth(), UpdateUserResourcesConfig)
+			response := accessTokenRequest(engine, tc.method, tc.path, credential, "", `{"config":{"defaults":{"rpm":{"enabled":true,"limit":10}},"users":{}},"reason":"scoped capacity review"}`)
+			require.Equal(t, tc.want, response.Code, response.Body.String())
+			if tc.want == http.StatusOK {
+				require.Contains(t, response.Body.String(), `"success":true`)
+				if strings.HasPrefix(tc.path, "/api/user/self/resources") {
+					var body struct {
+						Data struct {
+							UserID int `json:"user_id"`
+						}
+					}
+					require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
+					assert.Equal(t, user.Id, body.Data.UserID)
+				}
+			}
+		})
+	}
+}

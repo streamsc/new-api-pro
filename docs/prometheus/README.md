@@ -150,3 +150,14 @@ historical graph windows affect when old observations disappear. A successful
 scrape omitting a deleted/invalid channel is different from a failed scrape. No
 query here uses `or vector(0)` to turn absence into zero. Fixed rule tests cover
 deduplication, domain isolation, partial failure and configuration disagreement.
+
+## User resources (Issue #8)
+
+The same endpoint now also exports user resource gauges and per-process admission
+counters. See [user resource limits](user-resources.md) for scope, configuration,
+failure behavior, lifecycle, and PromQL. Existing channel series retain their
+labels: set a stable deployment label in the scrape target configuration and do
+not combine distinct deployments. Independent deployments use separate Redis
+databases or instances; no deployment-ID variable is required. Channel Redis key
+names are unchanged. Ordinary request slots expire after 30 minutes without
+renewal. Redis failure or expired slots no longer cancel admitted requests.

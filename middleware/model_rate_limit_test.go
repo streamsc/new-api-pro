@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -196,4 +197,19 @@ func TestModelRateLimitCountsConfiguredGroupsSeparately(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDisabledLegacyRateLimitDoesNotAccessRedis(t *testing.T) {
+	enabled, shared, client := setting.ModelRequestRateLimitEnabled, common.RedisEnabled, common.RDB
+	defer func() {
+		setting.ModelRequestRateLimitEnabled, common.RedisEnabled, common.RDB = enabled, shared, client
+	}()
+	setting.ModelRequestRateLimitEnabled = false
+	common.RedisEnabled = true
+	common.RDB = nil
+	engine := gin.New()
+	engine.GET("/", ModelRequestRateLimit(), func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+	require.Equal(t, http.StatusNoContent, recorder.Code)
 }

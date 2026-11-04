@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/concurrencymetrics"
+	resourceSettings "github.com/QuantumNous/new-api/setting"
 	"github.com/go-redis/redis/v8"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
@@ -77,6 +78,15 @@ func TestChannelConcurrencySentinelFailover(t *testing.T) {
 	require.EqualValues(t, 1, peerCount)
 	t.Logf("before: master=%s; application count=1; independent Sentinel client count=1; lease replicated", oldAddress)
 
+	releaseUser, rejection, userErr := AcquireUserResources(ctx, 91502, 17, resourceSettings.UserResourceLimits{})
+	require.NoError(t, userErr)
+	require.Nil(t, rejection)
+	defer releaseUser()
+	require.Eventually(t, func() bool {
+		count, e := replica.ZCard(ctx, userResourceKeys(91502)[0]).Result()
+		return e == nil && count == 1
+	}, 10*time.Second, 100*time.Millisecond)
+
 	started := time.Now()
 	shutdownErr := oldMaster.ShutdownNoSave(ctx).Err()
 	t.Logf("SHUTDOWN NOSAVE result: %v", shutdownErr)
@@ -116,17 +126,17 @@ new_api_concurrency_scrape_success{component="concurrency",scope="redis"} 0
 	require.True(t, after.ConcurrencySuccess)
 	require.Equal(t, 1, *after.Channels[0].InFlight)
 	assert.Equal(t, "redis", after.Scope)
-	assert.False(t, lease.Lost())
+	assert.NoError(t, lease.Context().Err())
 	peerCount, err = peer.ZCard(ctx, channelConcurrencyKey(channelID)).Result()
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, peerCount)
 	t.Logf("recovered at %s: new master=%s; both clients count=1; lease remains valid", time.Since(started), newAddress)
-	require.Eventually(t, func() bool {
-		newScore, readErr := peer.ZScore(ctx, channelConcurrencyKey(channelID), member).Result()
-		return readErr == nil && newScore > score
-	}, 35*time.Second, 200*time.Millisecond)
-	require.False(t, lease.Lost())
-	t.Logf("lease renewal observed on promoted master at %s", time.Since(started))
+
+	newScore, readErr := peer.ZScore(ctx, channelConcurrencyKey(channelID), member).Result()
+	require.NoError(t, readErr)
+	assert.Equal(t, score, newScore, "ordinary request slots are not renewed")
+	require.NoError(t, lease.Context().Err())
+
 	second, _, err := AcquireChannelConcurrency(ctx, channelID, 10, "issue5-after-failover")
 	require.NoError(t, err)
 	defer second.Release()
@@ -138,5 +148,12 @@ new_api_concurrency_scrape_success{component="concurrency",scope="redis"} 0
 	counts, err = GetChannelConcurrencyCounts(ctx, []int{channelID})
 	require.NoError(t, err)
 	assert.Zero(t, counts[channelID])
-	t.Log("new acquisition count=2; both releases count=0")
+	userUsage, userErr := GetUserResourceUsage(ctx, 91502)
+	require.NoError(t, userErr)
+	assert.Equal(t, UserResourceUsage{1, 17, 1}, userUsage)
+	releaseUser()
+	userUsage, userErr = GetUserResourceUsage(ctx, 91502)
+	require.NoError(t, userErr)
+	assert.Equal(t, UserResourceUsage{0, 17, 1}, userUsage)
+	t.Log("new acquisition count=2; both releases count=0; user window survives failover and release")
 }
