@@ -80,7 +80,10 @@ nonnegative integers up to 2147483647. User ID 42 above inherits concurrency/TPM
 user does not change their resource identity. Reducing limits does not cancel
 admitted requests or clear counters.
 
-GET/PUT `/api/option/user_resources` uses existing RootAuth. PUT accepts
+GET/PUT `/api/option/user_resources` uses existing RootAuth. Personal access
+tokens additionally require `option:read` for GET and `option:write` for PUT.
+The self-resource endpoint requires `profile:read` for personal access tokens.
+Browser sessions continue through existing session authentication. PUT accepts
 `{"config":{...},"reason":"capacity review"}`. Existing operation audits record
 operator, time, reason and before/after config; the prior config is read under the
 same database row lock as the update. Persistence reuses the options table without

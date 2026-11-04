@@ -301,3 +301,24 @@ and real Redis tests with independent OS processes sharing database 13 and an
 independent admission in database 14. Missing deployment ID is accepted in default,
 single and cluster modes with Redis configured. Logs are
 `output/issue8-validation/remove-deployment-id-*.log`.
+
+PR CI follow-up: the complete suite found missing declarations for four backend
+translation keys and three personal-access-token routes. Added the key constants
+and existing `profile:read` / `option:read` / `option:write` route grants without
+changing role checks or the deny-by-default policy. Regression tests first
+reproduced valid scoped tokens receiving `ACCESS_TOKEN_ROUTE_UNDECLARED`, then
+verified allowed reads/writes, missing scopes, read-only write denial, non-root
+configuration denial, and authenticated self identity despite a supplied user ID.
+
+Authorization review references: [OWASP ASVS 5.0.0 V8](https://github.com/OWASP/ASVS/blob/v5.0.0/5.0/en/0x17-V8-Authorization.md)
+8.2.1 (function permissions), 8.2.2 (object access), 8.3.1 (server enforcement),
+and the OWASP [Authentication](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html),
+[Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)
+and [Authorization](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)
+cheat sheets. This is a focused route-authorization check, not a full ASVS certification;
+credential issuance, session rotation and authentication lifecycles are unchanged.
+
+Follow-up verification passed: focused i18n/router/controller regressions;
+`make test` across the root, relaykit and tokenkit modules; `GOWORK=off go vet ./...`
+and `GOWORK=off go build ./...` independently in all three modules; and
+`git diff --check`. Local logs: `output/issue8-validation/ci-fix-*.log`.

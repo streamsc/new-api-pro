@@ -1265,3 +1265,47 @@ func TestUserResourceSelfEndpointAuthenticatesAndIgnoresOtherUserID(t *testing.T
 	assert.Equal(t, user.Id, body.Data.UserID)
 	assert.Equal(t, user.Username, body.Data.Username)
 }
+
+func TestUserResourceEndpointsEnforceAccessTokenScopes(t *testing.T) {
+	for _, tc := range []struct {
+		name, method, path, scope string
+		role, want                int
+	}{
+		{"self read", "GET", "/api/user/self/resources?user_id=999999", "profile:read", common.RoleCommonUser, http.StatusOK},
+		{"self missing scope", "GET", "/api/user/self/resources", "usage:read", common.RoleCommonUser, http.StatusForbidden},
+		{"root config read", "GET", "/api/option/user_resources", "option:read", common.RoleRootUser, http.StatusOK},
+		{"root config missing scope", "GET", "/api/option/user_resources", "profile:read", common.RoleRootUser, http.StatusForbidden},
+		{"read cannot write", "PUT", "/api/option/user_resources", "option:read", common.RoleRootUser, http.StatusForbidden},
+		{"root config write", "PUT", "/api/option/user_resources", "option:write", common.RoleRootUser, http.StatusOK},
+		{"admin cannot read root config", "GET", "/api/option/user_resources", "option:read", common.RoleAdminUser, http.StatusForbidden},
+		{"admin cannot write root config", "PUT", "/api/option/user_resources", "option:write", common.RoleAdminUser, http.StatusForbidden},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			user, _ := setupAccessTokenAudit(t)
+			require.NoError(t, model.DB.Model(user).Update("role", tc.role).Error)
+			previous := common.OptionMap
+			common.OptionMap = map[string]string{}
+			t.Cleanup(func() { common.OptionMap = previous })
+			credential, _ := createScopedAccessToken(t, user.Id, 0, tc.scope)
+			engine := gin.New()
+			engine.Use(middleware.RequestId())
+			engine.GET("/api/user/self/resources", middleware.UserAuth(), GetSelfResources)
+			engine.GET("/api/option/user_resources", middleware.RootAuth(), GetUserResourcesConfig)
+			engine.PUT("/api/option/user_resources", middleware.RootAuth(), UpdateUserResourcesConfig)
+			response := accessTokenRequest(engine, tc.method, tc.path, credential, "", `{"config":{"defaults":{"rpm":{"enabled":true,"limit":10}},"users":{}},"reason":"scoped capacity review"}`)
+			require.Equal(t, tc.want, response.Code, response.Body.String())
+			if tc.want == http.StatusOK {
+				require.Contains(t, response.Body.String(), `"success":true`)
+				if strings.HasPrefix(tc.path, "/api/user/self/resources") {
+					var body struct {
+						Data struct {
+							UserID int `json:"user_id"`
+						}
+					}
+					require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
+					assert.Equal(t, user.Id, body.Data.UserID)
+				}
+			}
+		})
+	}
+}

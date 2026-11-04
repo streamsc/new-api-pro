@@ -64,6 +64,7 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	"POST /api/user/sessions/revoke-others":        accessTokenSessionRule,
 	"GET /api/user/self/groups":                    accessTokenScopeRule("profile:read"),
 	"GET /api/user/self":                           accessTokenScopeRule("profile:read"),
+	"GET /api/user/self/resources":                 accessTokenScopeRule("profile:read"),
 	"GET /api/user/models":                         accessTokenScopeRule("profile:read"),
 	"PUT /api/user/self":                           accessTokenScopeRule("profile:write"),
 	"DELETE /api/user/self":                        accessTokenScopeRule("account_security:write"),
@@ -144,6 +145,8 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 
 	// router/api-router.go: /api/option
 	"GET /api/option/":                                           accessTokenScopeRule("option:read"),
+	"GET /api/option/user_resources":                             accessTokenScopeRule("option:read"),
+	"PUT /api/option/user_resources":                             accessTokenScopeRule("option:write"),
 	"GET /api/option/request_policy":                             accessTokenScopeRule("option:read"),
 	"PATCH /api/option/request_policy":                           accessTokenScopeRule("option:write"),
 	"PUT /api/option/":                                           accessTokenScopeRule("option:write"),

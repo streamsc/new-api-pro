@@ -15,7 +15,7 @@ import (
 func AdmitUserResources(c *gin.Context, info *relaycommon.RelayInfo) (func(), *types.NewAPIError) {
 	config, err := setting.CurrentUserResourcesConfig()
 	if err != nil {
-		return nil, types.NewErrorWithStatusCode(errors.New(i18n.T(c, "resources.store_unavailable")), types.ErrorCode("user_resource_store_unavailable"), 503, types.ErrOptionWithSkipRetry())
+		return nil, types.NewErrorWithStatusCode(errors.New(i18n.T(c, i18n.MsgResourceStoreUnavailable)), types.ErrorCode("user_resource_store_unavailable"), 503, types.ErrOptionWithSkipRetry())
 	}
 	tokens, err := service.EstimateUserResourceRequest(c, info)
 	if err != nil {
@@ -24,7 +24,7 @@ func AdmitUserResources(c *gin.Context, info *relaycommon.RelayInfo) (func(), *t
 
 	release, rejection, err := service.AcquireUserResources(c.Request.Context(), info.UserId, tokens, config.ForUser(info.UserId))
 	if err != nil {
-		return nil, types.NewErrorWithStatusCode(errors.New(i18n.T(c, "resources.store_unavailable")), types.ErrorCode("user_resource_store_unavailable"), 503, types.ErrOptionWithSkipRetry())
+		return nil, types.NewErrorWithStatusCode(errors.New(i18n.T(c, i18n.MsgResourceStoreUnavailable)), types.ErrorCode("user_resource_store_unavailable"), 503, types.ErrOptionWithSkipRetry())
 	}
 	if rejection != nil {
 		if rejection.RetryAfter > 0 {

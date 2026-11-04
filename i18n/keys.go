@@ -22,6 +22,11 @@ const (
 	MsgRateLimitReached      = "rate_limit.reached"
 	MsgRateLimitTotalReached = "rate_limit.total_reached"
 
+	MsgResourceStoreUnavailable = "resources.store_unavailable"
+	MsgUserConcurrencyExceeded  = "resources.user_concurrency_exceeded"
+	MsgUserInputTPMExceeded     = "resources.user_input_tpm_exceeded"
+	MsgUserRPMExceeded          = "resources.user_rpm_exceeded"
+
 	MsgDistributorInvalidRequest               = "distributor.invalid_request"
 	MsgDistributorInvalidChannelId             = "distributor.invalid_channel_id"
 	MsgDistributorChannelDisabled              = "distributor.channel_disabled"
