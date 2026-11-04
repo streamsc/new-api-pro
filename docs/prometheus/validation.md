@@ -180,3 +180,124 @@ passed. All 38 frontend test files (196 tests) passed locally with
 `NODE_OPTIONS=--no-experimental-webstorage bun run test`: the unmodified Node 26
 experimental storage globals had caused eight jsdom storage failures. This local
 environment override is not a production or CI configuration change.
+
+## Issue #8 implementation validation — 2026-11-04
+
+Workspace: `release/v1.0.0-rc.46-pro`. Existing `docs/diff-trace/` and prior
+`output/` artifacts were retained. This patch was not deployed or published.
+
+Observed passing checks:
+
+- `go test ./controller ./service ./middleware ./model ./relay ./pkg/concurrencymetrics -count=1`.
+  Covers ordinary relay cancellation, retries/final accounting, Responses WS,
+  request-policy/billing regressions and existing legacy limiter behavior.
+- `go test -race ./service -run 'UserResource|ResourceStore|ResourceRedisDatabases|MemoryChannelConcurrency' -count=1`.
+- `CONCURRENCY_TEST_REDIS_ADDR=127.0.0.1:16389 go test ./service -run 'TestUserResourcesRealRedisProcesses|TestChannelConcurrencyRealRedis|TestUserResource|TestResource' -count=1 -v`.
+  Dedicated Redis 7 Alpine container: independent OS processes share one user cap;
+  exit leaves a slot, a new process cannot acquire it, accelerated server-side
+  expiry frees concurrency without refunding window usage. Real CLIENT PAUSE
+  causes failed reads, not cancellation. Unit cases additionally exercise all
+  three-resource atomicity, rolling boundaries, zero allowance, unlimited-to-limit
+  transition, idempotent release, domains, unavailable statistics and data loss.
+- `CONCURRENCY_TEST_SENTINEL_ADDR=127.0.0.1:26390 CONCURRENCY_TEST_SENTINEL_REPLICA_ADDR=127.0.0.1:16391 go test ./service -run '^TestChannelConcurrencySentinelFailover$' -count=1 -v`.
+  Dedicated master/replica/Sentinel, actual `SHUTDOWN NOSAVE`, promotion after about
+  6.8 seconds. User window and slot were replicated before failure; new master
+  retained them, channel expiry timestamp did not renew, and releases succeeded.
+  This does **not** prove unreplicated writes survive failover.
+- `CONCURRENCY_TEST_MYSQL_DSN=... CONCURRENCY_TEST_POSTGRES_DSN=... go test ./model -run TestUserResourceOptionsDatabaseMatrix -count=1 -v`.
+  SQLite **3.50.4**, MySQL **8.0.46**, PostgreSQL **16.15**. Existing options table,
+  repeated migration, prior unrelated row preservation, defaults/override update,
+  stale-cache audit preimage and invalid limit rejection passed. No schema or
+  driver change is introduced; this is not a whole released-database upgrade test.
+- Additional focused controller checks cover RootAuth rejection, authenticated self
+  identity despite another ID in query parameters, anonymous rejection, audit
+  before/after/reason, current username mapping, absent unavailable metric samples,
+  free/billing-disabled estimates, cross-key user RPM, and retry usage unchanged by
+  upstream actual input counts. Legacy disabled limiter is tested with nil Redis.
+- Frontend `bun run test src/features/dashboard/components/overview/__tests__ src/features/system-settings/request-limits/__tests__`: **17 tests passed**.
+  Includes 39/40/79/80%, unlimited, failure/stale data suppression, hidden/unmounted
+  polling, required reason, zero/unlimited overrides, invalid limits and failed
+  save retention. `bun run typecheck`, changed-file `oxlint`, and `bun run build`
+  passed. Production build reported approximately 67.4 MB raw / 20.8 MB gzip for
+  the entire existing application, not the marginal size of this feature.
+- `go build ./...`, `go test ./relay/... -count=1` and `git diff --check` passed.
+- Playwright visually inspected actual feature components with isolated API
+  fixtures: desktop, 390px dark mobile, and settings JSON editor. Screenshots are
+  under `output/playwright/issue8-resources-*.png`. Reused PanelWrapper, ErrorState,
+  Progress, JsonCodeEditor, settings form/actions, RHF/Zod and TanStack Query;
+  no replacement general-purpose component or production dependency was added.
+- Live acceptance used two compiled gateway processes, shared SQLite/Redis 7,
+  a round-robin HTTP proxy and a controllable local OpenAI-compatible upstream.
+  A real browser logged in with encrypted password login, saved limits with a
+  reason, and displayed live usage. The persisted operation audit contains the
+  root identity, reason and correct before/after values. Two API keys belonging
+  to the same user were used against different replicas.
+- `output/issue8-validation/live-dual-gateway.log`: cross-key concurrent rejection
+  leaves all counters unchanged; both peers expose equal usage gauges; upstream
+  actual input 1234 does not replace admission estimate 9; two upstream retry
+  attempts consume one RPM; completed streaming releases concurrency; RPM/TPM
+  and enabled-zero rejection occur before upstream; Retry-After is present for
+  the exhausted rolling window; an actual 61-second wait expires RPM/TPM.
+- Redis pause/recovery verified restricted 503, omitted unavailable usage/metrics,
+  no cancellation of admitted work, and successful all-unlimited requests. A
+  timed-out release was observed to execute after unpause, so timeout is not
+  treated as proof that the write failed. Initial default-timeout trials also
+  encountered existing authentication-cache delays and a global API limiter
+  failure before the resource endpoint. The isolated resource-failure run used
+  Redis URL read/write/dial timeouts of 200ms, no client retries, and
+  `GLOBAL_API_RATE_LIMIT_ENABLE=false`; these were local fixture settings only.
+- `output/issue8-validation/live-lifecycle.log`: an actual peer restart retains
+  shared concurrency/window state; a streaming client's socket disconnect
+  releases concurrency without refunding RPM; an unlimited user is still rejected
+  with channel-store 503 when the selected channels are constrained during Redis
+  failure. Config synchronization was set to two seconds for local acceptance.
+- Live evidence: `output/playwright/issue8-live-{settings,overview}.png`,
+  `output/issue8-validation/live-browser-audit.json`, and peer resource/metrics
+  snapshots. The overview screenshot shows 1/1 concurrent, 9/10000 estimated
+  input TPM, and 1/10 RPM. Only the upstream and fixture data were synthetic;
+  authentication, config persistence, relay, Redis admission and the UI were real.
+- Final review removed duplicate unlimited-state text from the overview.
+  All 17 frontend tests, typecheck, affected-file oxlint, production frontend build,
+  final embedded gateway build and `git diff --check` passed after this change.
+
+Verification boundaries:
+
+- No production traffic, sustained capacity benchmark, exhaustive network-partition
+  matrix or half-hour wall-clock endurance test was run. The 30-minute expiry
+  was accelerated with controlled clocks/server timestamps; the 60-second window
+  was additionally verified with real elapsed time. Live browser acceptance used
+  a local upstream and shared SQLite; MySQL/PostgreSQL and Sentinel were exercised
+  separately by the integration checks above.
+- Input is an estimate of client-visible DTO input; remote opaque references and
+  provider-specific fields can differ from actual full model context. Redis loss,
+  asynchronous replication and exceptional >30-minute requests can undercount;
+  none of these trigger recovery coordination or additional request cancellation.
+- Configuration propagation uses existing polling (default 60 seconds) and can lag
+  longer under database failure. Scrapes are bounded, may omit samples on timeout,
+  and have user-count-dependent cardinality/cost; no production-size scrape load
+  benchmark was performed.
+- Existing channel WebSocket coverage is unchanged; channel slots cover ordinary
+  HTTP attempts. New user slots additionally cover Responses WebSocket turns.
+- New user resource UI strings have English and Simplified Chinese text; the other
+  locale catalogs include English fallback entries for the newly added strings.
+
+Upstream merge considerations: the main HTTP relay adds one admission call outside
+its retry loop, Responses WS adds one per-turn call, and option/metrics/routes gain
+small registration points. Legacy model limiting is not rewritten. The channel
+renewal/cancellation behavior is intentionally removed; do not restore it when
+merging upstream. Redis deployments use existing database/instance isolation; no
+`GATEWAY_DEPLOYMENT_ID` is required. Channel keys retain their existing names. Use
+a drained upgrade when changing slot lifetime/renewal semantics. Review these
+integration points and rerun the focused regression tests after upstream merges.
+
+Follow-up correction: removed the deployment-ID option, resource key namespace,
+self API domain field and gateway-generated domain metric labels. Independent
+installations use separate Redis databases/instances. Prometheus examples now
+retain an operator-provided `deployment` target label. Earlier live artifacts
+above record the pre-correction implementation and are historical evidence.
+Correction checks passed: `go test ./service ./controller ./relay
+./pkg/concurrencymetrics -count=1`, focused service race tests, `go build ./...`,
+and real Redis tests with independent OS processes sharing database 13 and an
+independent admission in database 14. Missing deployment ID is accepted in default,
+single and cluster modes with Redis configured. Logs are
+`output/issue8-validation/remove-deployment-id-*.log`.

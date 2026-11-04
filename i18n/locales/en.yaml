@@ -89,3 +89,8 @@ channel.upstream_update_added_models: "Added model examples (showing {{.Shown}}/
 channel.upstream_update_removed_models: "Removed model examples (showing {{.Shown}}/{{.Total}}): {{.Models}}"
 channel.upstream_update_failed_channels: "Failed channel IDs (showing {{.Shown}}/{{.Total}}): {{.Ids}}"
 channel.upstream_update_more_omitted: " ({{.Count}} more omitted)"
+
+resources.store_unavailable: "User resource store unavailable"
+resources.user_concurrency_exceeded: "User concurrency limit exceeded"
+resources.user_input_tpm_exceeded: "Estimated input TPM limit exceeded"
+resources.user_rpm_exceeded: "User RPM limit exceeded"

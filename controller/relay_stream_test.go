@@ -56,6 +56,7 @@ func TestRelayKeepAliveDuringImagePreparation(t *testing.T) {
 	defer imageServer.Close()
 	engine := gin.New()
 	engine.POST("/v1/messages", func(c *gin.Context) {
+		common.SetContextKey(c, constant.ContextKeyUserId, 98001)
 		common.SetContextKey(c, constant.ContextKeyOriginalModel, "claude-sonnet-4-20250514")
 		Relay(c, types.RelayFormatClaude)
 	})
@@ -260,6 +261,7 @@ func TestRelayKeepAliveHonorsStreamSettings(t *testing.T) {
 			body := `{"model":"claude-sonnet-4-20250514","max_tokens":16,"stream":` + strconv.FormatBool(test.stream) + `,"messages":[{"role":"user","content":[{"type":"image","source":{"type":"base64","media_type":"image/png","data":"!"}}]}]}`
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
 			c.Request.Header.Set("Content-Type", "application/json")
+			common.SetContextKey(c, constant.ContextKeyUserId, 98001)
 			common.SetContextKey(c, constant.ContextKeyOriginalModel, "claude-sonnet-4-20250514")
 			Relay(c, types.RelayFormatClaude)
 			require.Equal(t, http.StatusInternalServerError, recorder.Code)

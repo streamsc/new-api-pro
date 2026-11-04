@@ -19,10 +19,17 @@ For commercial licensing, please contact support@quantumnous.com
 import { RateLimitSection } from '../request-limits/rate-limit-section'
 import { SSRFSection } from '../request-limits/ssrf-section'
 import { TokenLimitSection } from '../request-limits/token-limit-section'
+
+import { UserResourcesSection } from '../request-limits/user-resources-section'
 import type { SecuritySettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 
 const SECURITY_SECTIONS = [
+  {
+    id: 'user-resources',
+    titleKey: 'User resource limits',
+    build: () => <UserResourcesSection />,
+  },
   {
     id: 'rate-limit',
     titleKey: 'Rate Limiting',

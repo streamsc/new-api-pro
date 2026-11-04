@@ -90,3 +90,8 @@ channel.upstream_update_added_models: "新增模型示例（展示 {{.Shown}}/{{
 channel.upstream_update_removed_models: "删除模型示例（展示 {{.Shown}}/{{.Total}}）：{{.Models}}"
 channel.upstream_update_failed_channels: "失败渠道 ID（展示 {{.Shown}}/{{.Total}}）：{{.Ids}}"
 channel.upstream_update_more_omitted: "（其余 {{.Count}} 个已省略）"
+
+resources.store_unavailable: "用户额度存储暂不可用"
+resources.user_concurrency_exceeded: "用户并发已达上限"
+resources.user_input_tpm_exceeded: "估算输入 TPM 已达上限"
+resources.user_rpm_exceeded: "用户 RPM 已达上限"

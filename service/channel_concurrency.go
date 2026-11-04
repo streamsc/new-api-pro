@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -16,9 +15,7 @@ import (
 
 const (
 	channelConcurrencyKeyPrefix = "channel_concurrency:v1:"
-	channelLeaseDuration        = 120 * time.Second
-	channelLeaseRenewInterval   = 30 * time.Second
-	channelLeaseSafetyWindow    = 30 * time.Second
+	channelLeaseDuration        = 30 * time.Minute
 	channelRedisTimeout         = 3 * time.Second
 	channelRedisKeyTTL          = 2 * channelLeaseDuration
 )
@@ -29,8 +26,8 @@ var (
 
 	memoryChannelConcurrency = struct {
 		sync.Mutex
-		counts map[int]int
-	}{counts: make(map[int]int)}
+		slots map[int]map[string]time.Time
+	}{slots: make(map[int]map[string]time.Time)}
 )
 
 const acquireChannelLeaseScript = `
@@ -46,17 +43,6 @@ end
 redis.call('ZADD', KEYS[1], now + tonumber(ARGV[2]), ARGV[3])
 redis.call('PEXPIRE', KEYS[1], ARGV[4])
 return {1, count + 1}
-`
-
-const renewChannelLeaseScript = `
-if redis.call('ZSCORE', KEYS[1], ARGV[1]) == false then
-  return 0
-end
-local redisTime = redis.call('TIME')
-local now = redisTime[1] * 1000 + math.floor(redisTime[2] / 1000)
-redis.call('ZADD', KEYS[1], 'XX', now + tonumber(ARGV[2]), ARGV[1])
-redis.call('PEXPIRE', KEYS[1], ARGV[3])
-return 1
 `
 
 const releaseChannelLeaseScript = `
@@ -87,10 +73,7 @@ type ChannelConcurrencyLease struct {
 	redis     bool
 	ctx       context.Context
 	cancel    context.CancelFunc
-	stop      chan struct{}
-	done      chan struct{}
 	released  sync.Once
-	lost      atomic.Bool
 }
 
 func channelConcurrencyKey(channelID int) string {
@@ -101,7 +84,16 @@ func redisTimeoutContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), channelRedisTimeout)
 }
 
-func AcquireChannelConcurrency(parent context.Context, channelID int, maximum int, member string) (*ChannelConcurrencyLease, int, error) {
+func AcquireChannelConcurrency(parent context.Context, channelID int, maximum int, member string) (result *ChannelConcurrencyLease, count int, resultErr error) {
+	defer func() {
+		if maximum == 0 && errors.Is(resultErr, ErrChannelConcurrencyStore) {
+			logger.LogError(parent, fmt.Sprintf("unlimited channel statistics unavailable: channel_id=%d error=%v", channelID, resultErr))
+			ctx, cancel := context.WithCancel(parent)
+			result = &ChannelConcurrencyLease{ctx: ctx, cancel: cancel}
+			count = -1
+			resultErr = nil
+		}
+	}()
 	if channelID <= 0 {
 		return nil, 0, fmt.Errorf("invalid channel id %d", channelID)
 	}
@@ -122,14 +114,17 @@ func AcquireChannelConcurrency(parent context.Context, channelID int, maximum in
 
 	if !common.RedisEnabled {
 		memoryChannelConcurrency.Lock()
-		current := memoryChannelConcurrency.counts[channelID]
+		current := pruneMemoryChannelSlots(channelID, time.Now())
 		if maximum > 0 && current >= maximum {
 			memoryChannelConcurrency.Unlock()
 			cancel()
 			return nil, current, ErrChannelConcurrencyLimit
 		}
 		current++
-		memoryChannelConcurrency.counts[channelID] = current
+		if memoryChannelConcurrency.slots[channelID] == nil {
+			memoryChannelConcurrency.slots[channelID] = map[string]time.Time{}
+		}
+		memoryChannelConcurrency.slots[channelID][member] = time.Now().Add(channelLeaseDuration)
 		memoryChannelConcurrency.Unlock()
 		return lease, current, nil
 	}
@@ -166,9 +161,6 @@ func AcquireChannelConcurrency(parent context.Context, channelID int, maximum in
 	}
 
 	lease.redis = true
-	lease.stop = make(chan struct{})
-	lease.done = make(chan struct{})
-	go lease.renew()
 	return lease, current, nil
 }
 
@@ -189,51 +181,12 @@ func (lease *ChannelConcurrencyLease) Context() context.Context {
 	return lease.ctx
 }
 
-func (lease *ChannelConcurrencyLease) Lost() bool {
-	return lease != nil && lease.lost.Load()
-}
-
-func (lease *ChannelConcurrencyLease) renew() {
-	defer close(lease.done)
-	ticker := time.NewTicker(channelLeaseRenewInterval)
-	defer ticker.Stop()
-	lastSuccess := time.Now()
-	for {
-		select {
-		case <-lease.stop:
-			return
-		case <-lease.ctx.Done():
-			return
-		case <-ticker.C:
-			ctx, cancel := redisTimeoutContext()
-			renewed, err := common.RDB.Eval(ctx, renewChannelLeaseScript,
-				[]string{channelConcurrencyKey(lease.channelID)}, lease.member,
-				channelLeaseDuration.Milliseconds(), channelRedisKeyTTL.Milliseconds()).Int()
-			cancel()
-			if err == nil && renewed == 1 {
-				lastSuccess = time.Now()
-				continue
-			}
-			if err != nil {
-				logger.LogError(lease.ctx, fmt.Sprintf("failed to renew channel concurrency lease: channel_id=%d error=%v", lease.channelID, err))
-			}
-			if (err == nil && renewed == 0) || time.Since(lastSuccess) >= channelLeaseDuration-channelLeaseSafetyWindow {
-				lease.lost.Store(true)
-				lease.cancel()
-				return
-			}
-		}
-	}
-}
-
 func (lease *ChannelConcurrencyLease) Release() {
 	if lease == nil {
 		return
 	}
 	lease.released.Do(func() {
 		if lease.redis {
-			close(lease.stop)
-			<-lease.done
 			ctx, cancel := redisTimeoutContext()
 			_, err := common.RDB.Eval(ctx, releaseChannelLeaseScript,
 				[]string{channelConcurrencyKey(lease.channelID)}, lease.member).Result()
@@ -243,11 +196,9 @@ func (lease *ChannelConcurrencyLease) Release() {
 			}
 		} else {
 			memoryChannelConcurrency.Lock()
-			current := memoryChannelConcurrency.counts[lease.channelID]
-			if current <= 1 {
-				delete(memoryChannelConcurrency.counts, lease.channelID)
-			} else {
-				memoryChannelConcurrency.counts[lease.channelID] = current - 1
+			delete(memoryChannelConcurrency.slots[lease.channelID], lease.member)
+			if len(memoryChannelConcurrency.slots[lease.channelID]) == 0 {
+				delete(memoryChannelConcurrency.slots, lease.channelID)
 			}
 			memoryChannelConcurrency.Unlock()
 		}
@@ -265,7 +216,7 @@ func GetChannelConcurrencyCounts(parent context.Context, channelIDs []int) (map[
 	if !common.RedisEnabled {
 		memoryChannelConcurrency.Lock()
 		for _, channelID := range channelIDs {
-			counts[channelID] = memoryChannelConcurrency.counts[channelID]
+			counts[channelID] = pruneMemoryChannelSlots(channelID, time.Now())
 		}
 		memoryChannelConcurrency.Unlock()
 		return counts, nil
@@ -291,4 +242,17 @@ func GetChannelConcurrencyCounts(parent context.Context, channelIDs []int) (map[
 		counts[channelID] = count
 	}
 	return counts, nil
+}
+
+// Caller holds the memory mutex. Expiry never cancels a running request.
+func pruneMemoryChannelSlots(id int, now time.Time) int {
+	for member, expiry := range memoryChannelConcurrency.slots[id] {
+		if !expiry.After(now) {
+			delete(memoryChannelConcurrency.slots[id], member)
+		}
+	}
+	if len(memoryChannelConcurrency.slots[id]) == 0 {
+		delete(memoryChannelConcurrency.slots, id)
+	}
+	return len(memoryChannelConcurrency.slots[id])
 }

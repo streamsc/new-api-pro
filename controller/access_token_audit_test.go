@@ -1216,3 +1216,52 @@ CREATE TABLE IF NOT EXISTS logs (
 ENGINE = MergeTree()
 PARTITION BY toYYYYMM(toDateTime(created_at))
 ORDER BY (created_at, request_id)`
+
+func TestUserResourceLimitsRequireRootAndAuditBeforeAfter(t *testing.T) {
+	user, _ := setupAccessTokenAudit(t)
+	_, credential := createAccessTokenTestSession(t, user.Id, "resource-admin")
+	previousMap := common.OptionMap
+	common.OptionMap = map[string]string{}
+	defer func() { common.OptionMap = previousMap }()
+	engine := gin.New()
+	engine.Use(middleware.RequestId())
+	engine.PUT("/api/option/user_resources", middleware.RootAuth(), UpdateUserResourcesConfig)
+	body := `{"config":{"defaults":{"rpm":{"enabled":true,"limit":10}},"users":{}},"reason":"capacity review"}`
+	response := accessTokenRequest(engine, http.MethodPut, "/api/option/user_resources", credential, "", body)
+	require.Equal(t, http.StatusForbidden, response.Code, "ordinary admin cannot change root options")
+	require.NoError(t, model.DB.Model(user).Update("role", common.RoleRootUser).Error)
+	_, credential = createAccessTokenTestSession(t, user.Id, "resource-root")
+	response = accessTokenRequest(engine, http.MethodPut, "/api/option/user_resources", credential, "", body)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	require.Contains(t, response.Body.String(), `"success":true`)
+	var audit model.AuditLog
+	require.NoError(t, model.LOG_DB.Where("action = ?", "user_resource_limits.update").First(&audit).Error)
+	encoded, err := common.Marshal(audit)
+	require.NoError(t, err)
+	require.Contains(t, string(encoded), "capacity review")
+	require.Contains(t, string(encoded), "before")
+	require.Contains(t, string(encoded), "after")
+}
+
+func TestUserResourceSelfEndpointAuthenticatesAndIgnoresOtherUserID(t *testing.T) {
+	user, _ := setupAccessTokenAudit(t)
+	_, credential := createAccessTokenTestSession(t, user.Id, "resource-self")
+	previousMap := common.OptionMap
+	common.OptionMap = map[string]string{}
+	defer func() { common.OptionMap = previousMap }()
+	engine := gin.New()
+	engine.GET("/api/user/self/resources", middleware.UserAuth(), GetSelfResources)
+	anonymous := accessTokenRequest(engine, http.MethodGet, "/api/user/self/resources", "", "", "")
+	require.Equal(t, http.StatusUnauthorized, anonymous.Code)
+	response := accessTokenRequest(engine, http.MethodGet, "/api/user/self/resources?user_id=999999", credential, "", "")
+	require.Equal(t, http.StatusOK, response.Code)
+	var body struct {
+		Data struct {
+			UserID   int `json:"user_id"`
+			Username string
+		}
+	}
+	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
+	assert.Equal(t, user.Id, body.Data.UserID)
+	assert.Equal(t, user.Username, body.Data.Username)
+}

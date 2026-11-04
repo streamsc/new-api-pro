@@ -608,6 +608,12 @@ func TestResponsesWebSocketReusesConnectionAndSettlesEachRequest(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rejection.Status)
 	assert.Equal(t, int32(1), fixture.connections.Load())
 	assert.Empty(t, received, "exhausted token must be rejected before contacting upstream")
+	resources, resourceErr := service.GetUserResourceUsage(context.Background(), fixture.user.Id)
+	require.NoError(t, resourceErr)
+	assert.Equal(t, 2, resources.RPM, "each response.create is admitted once; authentication rejection is excluded")
+	assert.Zero(t, resources.Concurrency, "idle connection holds no resource slot")
+	assert.Less(t, resources.InputTPM, 2000, "actual usage must not replace input estimates")
+
 	var logs []model.Log
 	require.NoError(t, model.LOG_DB.Where("type = ?", model.LogTypeConsume).Order("id").Find(&logs).Error)
 	require.Len(t, logs, 2)
@@ -1042,6 +1048,13 @@ func TestResponsesHTTPHealthCountsFinalResult(t *testing.T) {
 			case <-time.After(3 * time.Second):
 				t.Fatal("HTTP request did not finish")
 			}
+			resourceUsage, resourceErr := service.GetUserResourceUsage(context.Background(), fixture.user.Id)
+			require.NoError(t, resourceErr)
+			assert.Equal(t, 1, resourceUsage.RPM, "internal retries must not admit twice")
+			assert.Zero(t, resourceUsage.Concurrency, "final success and failure both release")
+			assert.Positive(t, resourceUsage.InputTPM)
+			assert.Less(t, resourceUsage.InputTPM, 1000, "actual upstream usage must not replace the input estimate")
+
 			fixture.closeAndWait(t)
 			assert.Equal(t, int64(tc.attempts), attempts.Load())
 			if !tc.success {

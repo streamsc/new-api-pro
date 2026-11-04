@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -267,4 +268,71 @@ func CountAudioTokenOutput(audioBase64 string, audioFormat string) (int, error) 
 	}
 	// duration 来自上游返回的音频元数据，饱和转换防止 int 回绕
 	return common.QuotaFromFloat(duration / 60 * 200 / 0.24), nil
+}
+
+// EstimateUserResourceInput uses the protocol's complete input metadata and
+// existing tokenkit models, independently of billing flags and price ratios.
+// Media uses tokenkit's default image size and the existing fixed file estimates;
+// admission must not download remote media before it can decide whether to allow a request.
+func EstimateUserResourceInput(meta *types.TokenCountMeta, model string, format types.RelayFormat) int {
+	if meta == nil {
+		return 0
+	}
+	tokens := tokenkit.Count(model, meta.CombineText)
+	if meta.TokenType == types.TokenTypeTextNumber {
+		tokens = utf8.RuneCountInString(meta.CombineText)
+	}
+	if format == types.RelayFormatOpenAI {
+		tokens += meta.ToolsCount*8 + meta.MessagesCount*3 + meta.NameCount*3 + 3
+	}
+	for _, file := range meta.Files {
+		switch file.FileType {
+		case types.FileTypeImage:
+			tokens += tokenkit.ImageTokens(model, tokenkit.Image{Detail: file.Detail})
+		case types.FileTypeAudio:
+			tokens += 256
+		case types.FileTypeVideo:
+			tokens += 8192
+		default:
+			tokens += 4096
+		}
+	}
+	return tokens
+}
+
+func EstimateUserResourceRequest(c *gin.Context, info *relaycommon.RelayInfo) (int, error) {
+	if info.Request == nil {
+		return 0, nil
+	}
+	meta := info.Request.GetTokenCountMeta()
+	if info.RelayMode == constant2.RelayModeAudioTranscription || info.RelayMode == constant2.RelayModeAudioTranslation {
+		return CountRequestToken(c, meta, info)
+	}
+	tokens := EstimateUserResourceInput(meta, info.OriginModelName, info.RelayFormat)
+	if request, ok := info.Request.(*dto.ImageRequest); ok {
+		images := 0
+		for _, raw := range []json.RawMessage{request.Image, request.Images, request.Mask} {
+			switch common.GetJsonType(raw) {
+			case "array":
+				var values []json.RawMessage
+				if err := common.Unmarshal(raw, &values); err != nil {
+					return 0, err
+				}
+				images += len(values)
+			case "string", "object":
+				images++
+			}
+		}
+		if strings.HasPrefix(c.GetHeader("Content-Type"), "multipart/form-data") {
+			form, err := common.ParseMultipartFormReusable(c)
+			if err != nil {
+				return 0, err
+			}
+			for _, files := range form.File {
+				images += len(files)
+			}
+		}
+		tokens += images * tokenkit.ImageTokens(info.OriginModelName, tokenkit.Image{})
+	}
+	return tokens, nil
 }

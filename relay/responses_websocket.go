@@ -269,6 +269,14 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 	common.SetContextKey(c, appconstant.ContextKeyRequestStartTime, time.Now())
 	service.GetChannelConstraints(c).AddFilter(appdto.ChannelFilter{Kind: appdto.FilterRequestPath, RequestPath: c.Request.URL.Path})
 
+	// A response.create is one logical request; idle connections own no user slot.
+	admissionInfo := relaycommon.GenRelayInfoResponses(c, &create.Request)
+	releaseResources, resourceErr := AdmitUserResources(c, admissionInfo)
+	if resourceErr != nil {
+		return resourceErr
+	}
+	defer releaseResources()
+
 	if s.lockedChannelID != 0 {
 		if apiErr = s.restoreConnectionContext(c, modelName); apiErr != nil {
 			return apiErr
