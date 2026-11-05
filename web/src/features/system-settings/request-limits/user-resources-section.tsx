@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
@@ -36,32 +36,16 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { api } from '@/lib/api'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { SettingsForm } from '../components/settings-form-layout'
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
+import { userResourcesConfigSchema } from './user-resources-schema'
+import { UserResourcesVisualEditor } from './user-resources-visual-editor'
 
-const limitSchema = z
-  .object({
-    enabled: z.boolean(),
-    limit: z.number().int().min(0).max(2147483647),
-  })
-  .strict()
-const limitsSchema = z
-  .object({
-    concurrency: limitSchema,
-    input_tpm: limitSchema,
-    rpm: limitSchema,
-  })
-  .strict()
-const userResourcesConfigSchema = z
-  .object({
-    defaults: limitsSchema,
-    users: z.record(z.string().regex(/^[1-9]\d*$/), limitsSchema.partial()),
-  })
-  .strict()
 const formSchema = z.object({
   config: z.string().refine((value) => {
     try {
@@ -72,9 +56,11 @@ const formSchema = z.object({
   }, 'Invalid resource limits configuration'),
   reason: z.string().trim().min(1).max(1000),
 })
+
 type FormValues = z.infer<typeof formSchema>
 export function UserResourcesSection() {
   const { t } = useTranslation()
+  const [editMode, setEditMode] = useState('visual')
   const client = useQueryClient()
   const query = useQuery({
     queryKey: ['user-resources-config'],
@@ -94,7 +80,12 @@ export function UserResourcesSection() {
   })
   useEffect(() => {
     if (query.data) {
-      form.reset({ config: JSON.stringify(query.data, null, 2), reason: '' })
+      if (!form.formState.isDirty) {
+        form.reset({ config: JSON.stringify(query.data, null, 2), reason: '' })
+        if (!userResourcesConfigSchema.safeParse(query.data).success) {
+          setEditMode('json')
+        }
+      }
     }
   }, [query.data, form])
   const mutation = useMutation({
@@ -107,7 +98,8 @@ export function UserResourcesSection() {
           })
         ).data
       ),
-    onSuccess: async () => {
+    onSuccess: async (_data, values) => {
+      form.reset({ config: values.config, reason: '' })
       await client.invalidateQueries({ queryKey: ['user-resources-config'] })
       await client.invalidateQueries({ queryKey: ['self-resources'] })
     },
@@ -136,20 +128,57 @@ export function UserResourcesSection() {
             control={form.control}
             name='config'
             render={({ field }) => (
-              <FormItem>
+              <FormItem data-settings-form-span='full'>
                 <FormLabel>{t('Defaults and user overrides')}</FormLabel>
                 <FormDescription>
                   {t(
-                    'Set enabled=false for unlimited; enabled=true with limit=0 blocks new requests. Missing user fields inherit defaults. User overrides are keyed by numeric user ID. Changes preserve counters and propagate within the option sync interval (60 seconds by default).'
+                    'User overrides inherit default limits unless changed. Changes preserve usage counters and sync to other nodes within the configured interval (60 seconds by default).'
                   )}
                 </FormDescription>
-                <FormControl>
-                  <JsonCodeEditor
-                    value={field.value}
-                    onChange={field.onChange}
-                    ariaLabel={t('Defaults and user overrides')}
-                  />
-                </FormControl>
+                <Tabs
+                  className='min-w-0'
+                  value={editMode}
+                  onValueChange={(value) => {
+                    if (value === 'visual') {
+                      try {
+                        userResourcesConfigSchema.parse(JSON.parse(field.value))
+                      } catch {
+                        form.setError('config', {
+                          message: 'Invalid resource limits configuration',
+                        })
+                        return
+                      }
+                    }
+                    form.clearErrors('config')
+                    setEditMode(String(value))
+                  }}
+                >
+                  <TabsList className='grid w-full grid-cols-2'>
+                    <TabsTrigger value='visual'>{t('Visual')}</TabsTrigger>
+                    <TabsTrigger value='json'>{t('JSON')}</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value='visual' className='mt-4 min-w-0'>
+                    {editMode === 'visual' && field.value && (
+                      <UserResourcesVisualEditor
+                        config={JSON.parse(field.value)}
+                        onChange={(config) =>
+                          field.onChange(JSON.stringify(config, null, 2))
+                        }
+                      />
+                    )}
+                  </TabsContent>
+                  <TabsContent value='json' className='mt-4 min-w-0'>
+                    <FormControl>
+                      <JsonCodeEditor
+                        value={field.value}
+                        onChange={field.onChange}
+                        ariaLabel={t('Defaults and user overrides')}
+                        onBlur={field.onBlur}
+                        textareaRef={field.ref}
+                      />
+                    </FormControl>
+                  </TabsContent>
+                </Tabs>
                 <FormMessage />
               </FormItem>
             )}
@@ -158,7 +187,7 @@ export function UserResourcesSection() {
             control={form.control}
             name='reason'
             render={({ field }) => (
-              <FormItem>
+              <FormItem data-settings-form-span='full'>
                 <FormLabel>{t('Reason for change')}</FormLabel>
                 <FormControl>
                   <Input {...field} maxLength={1000} />
