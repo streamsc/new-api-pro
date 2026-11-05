@@ -1,0 +1,122 @@
+[
+  {
+    "panel": "Scrape health \u00b7 2 gateway replicas",
+    "query": "up{job=\"new-api\"}",
+    "series": 2,
+    "warnings": []
+  },
+  {
+    "panel": "Finished logical requests \u00b7 process totals",
+    "query": "sum by(result) (new_api_relay_requests_total)",
+    "series": 4,
+    "warnings": []
+  },
+  {
+    "panel": "Channel slot rejection events",
+    "query": "sum(new_api_channel_concurrency_rejected_total)",
+    "series": 0,
+    "warnings": []
+  },
+  {
+    "panel": "Request results \u00b7 rate / second",
+    "query": "sum by(model,result)(rate(new_api_relay_requests_total[1m]))",
+    "series": 6,
+    "warnings": []
+  },
+  {
+    "panel": "Outcome proportions \u00b7 unknown included",
+    "query": "sum by(result)(rate(new_api_relay_requests_total[1m])) / ignoring(result) group_left sum(rate(new_api_relay_requests_total[1m]))",
+    "series": 4,
+    "warnings": []
+  },
+  {
+    "panel": "Logical latency P50 / P95 / P99",
+    "query": "histogram_quantile(0.5,sum by(le)(rate(new_api_relay_request_duration_seconds_bucket[1m])))",
+    "series": 1,
+    "warnings": []
+  },
+  {
+    "panel": "Logical latency P50 / P95 / P99",
+    "query": "histogram_quantile(0.95,sum by(le)(rate(new_api_relay_request_duration_seconds_bucket[1m])))",
+    "series": 1,
+    "warnings": []
+  },
+  {
+    "panel": "Logical latency P50 / P95 / P99",
+    "query": "histogram_quantile(0.99,sum by(le)(rate(new_api_relay_request_duration_seconds_bucket[1m])))",
+    "series": 1,
+    "warnings": []
+  },
+  {
+    "panel": "Rejections by model / channel \u00b7 events / second",
+    "query": "new_api:channel_concurrency_rejected:rate5m",
+    "series": 1,
+    "warnings": []
+  },
+  {
+    "panel": "Current channel names \u00b7 unique within deployment",
+    "query": "new_api:channel_info:unique",
+    "series": 3,
+    "warnings": []
+  },
+  {
+    "panel": "Shared Redis slots \u00b7 deduplicated, not summed",
+    "query": "new_api:redis_concurrency_in_flight:deduplicated * on(deployment,concurrency_domain,channel_id) group_left(channel_name) new_api:channel_info:unique",
+    "series": 3,
+    "warnings": []
+  },
+  {
+    "panel": "Channel limit / enabled \u00b7 unlimited has no numeric limit",
+    "query": "max by(channel_id)(new_api_channel_concurrency_limit)",
+    "series": 2,
+    "warnings": []
+  },
+  {
+    "panel": "User resource usage \u00b7 Redis deduplicated",
+    "query": "max by(user_id)(new_api_user_inflight_requests)",
+    "series": 1,
+    "warnings": []
+  },
+  {
+    "panel": "Collection components \u00b7 1 = readable",
+    "query": "min by(component)(new_api_concurrency_scrape_success)",
+    "series": 2,
+    "warnings": []
+  },
+  {
+    "panel": "User rolling windows \u00b7 requests / estimated input tokens",
+    "query": "max by(user_id)(new_api_user_window_requests)",
+    "series": 1,
+    "warnings": []
+  },
+  {
+    "panel": "User rolling windows \u00b7 requests / estimated input tokens",
+    "query": "max by(user_id)(new_api_user_window_input_tokens)",
+    "series": 1,
+    "warnings": []
+  },
+  {
+    "panel": "User configured limits \u00b7 enabled and usage availability",
+    "query": "max by(deployment,concurrency_domain,user_id,resource)(new_api_user_limit) * on(deployment,concurrency_domain,user_id) group_left(username) max by(deployment,concurrency_domain,user_id,username)(new_api_user_info)",
+    "series": 3,
+    "warnings": []
+  },
+  {
+    "panel": "User admission / rejection \u00b7 process rates",
+    "query": "sum by(user_id)(rate(new_api_user_admitted_requests_total[1m]))",
+    "series": 1,
+    "warnings": []
+  },
+  {
+    "panel": "User admission / rejection \u00b7 process rates",
+    "query": "sum by(user_id,reason)(rate(new_api_user_rejected_requests_total[1m]))",
+    "series": 4,
+    "warnings": []
+  },
+  {
+    "panel": "Channel limit enabled \u00b7 0 means unlimited",
+    "query": "max by(channel_id)(new_api_channel_concurrency_limit_enabled)",
+    "series": 3,
+    "warnings": []
+  }
+]

@@ -6,8 +6,9 @@ channel concurrency service (including Realtime and asynchronous tasks).
 
 ## Metrics
 
-All four families are Gauges. No credentials are required. No Go/process collectors
-or request instrumentation are registered by this endpoint.
+The four concurrency families below are Gauges. No credentials are required.
+No Go/process collectors are registered. Logical relay counters and durations
+are described below; scraping this endpoint does not itself count as a relay.
 
 | Name | Labels | Meaning |
 | --- | --- | --- |
@@ -21,7 +22,7 @@ decimal IDs, not names. All database channels are included, including disabled
 channels that may still have active requests. A deleted channel disappears from
 the next successful scrape; orphaned reservations are not separately enumerated.
 
-The collector queries only `id, setting`. The setting column is read as a whole,
+The collector queries only `id, name, setting`. The setting column is read as a whole,
 but only `max_concurrency` is interpreted. Other properties, raw settings and
 credentials are not exposed. It never calls the repairing `Channel.GetSetting()`.
 SQL NULL, blank settings, an absent property, and integer zero mean unlimited.
@@ -161,3 +162,205 @@ not combine distinct deployments. Independent deployments use separate Redis
 databases or instances; no deployment-ID variable is required. Channel Redis key
 names are unchanged. Ordinary request slots expire after 30 minutes without
 renewal. Redis failure or expired slots no longer cancel admitted requests.
+
+## Logical HTTP relay metrics (Issue #6)
+
+| Name | Type | Labels |
+| --- | --- | --- |
+| `new_api_channel_info` | Gauge, always 1 | `channel_id`, `channel_name` |
+| `new_api_channel_concurrency_rejected_total` | Counter | `model`, `channel_id` |
+| `new_api_relay_requests_total` | Counter | `model`, `result` |
+| `new_api_relay_request_duration_seconds` | Histogram | `model`, `result` |
+
+Histogram boundaries in seconds are **0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1,
+2.5, 5, 10, 30, 60, 120, 300, 600, 1800**, plus the implicit `+Inf` bucket.
+The exported histogram includes `_bucket{le}`, `_sum`, and `_count`. These buckets
+cover short synchronous calls and generation streams up to 30 minutes; requests
+can last longer, but quantiles in the overflow bucket are not precise.
+
+The boundary starts at entry to `controller.Relay` and ends in its outer defer,
+after its cleanup/error-response defers. It includes validation within Relay,
+user admission, preparation, internal routing, all serial retries and cleanup.
+It excludes middleware authentication, initial middleware channel selection and
+network delivery after Relay returns. Each entry records one result and one
+elapsed observation, including early returns, cancellation, panic and unknown.
+An HTTP 200 does not establish stream success. Existing performance-page health
+sampling is independent and unchanged.
+
+Covered paths that actually reach this function: standard HTTP OpenAI
+completions/chat, Responses and compact Responses; Claude messages; Gemini
+models/generate/stream/embed and engines embeddings; embeddings, rerank, audio,
+moderations, alpha search, tools search/fetch; legacy edits and image
+generations/edits when the host protocol dispatcher falls back to ordinary Relay;
+and playground chat. Task-plugin dispatch that intercepts these paths is not
+included. Realtime, Responses WebSocket, asynchronous tasks, channel test probes,
+count_tokens, `/metrics`, and all rejections before Relay are excluded. Thus the
+denominator is **finished supported Relay entries**, not all gateway HTTP traffic.
+An in-progress stream has not yet contributed to either request metric.
+
+`model` is frozen at Relay entry, before upstream model mapping. The selected
+channel's configured model list acts as the allowlist; both the client model and
+configured names use the existing `RoutingMatchModelName` normalization (reasoning
+modifiers/legacy aliases and existing wildcard families). Only an exact match of
+these normalized names is emitted. Missing channel/model recognition, including
+arbitrary models on a pinned channel, becomes the fixed label `unknown`.
+Administrator-configured model/channel churn can still grow series over a process
+lifetime; client modifiers, error messages and arbitrary request models cannot.
+No new model lookup or database/cache refresh is performed for each request.
+
+### Result classification and limits
+
+The fixed results are `success`, `failure`, `cancelled`, `unknown`. Classification
+uses existing Relay errors and `StreamStatus`; no extra protocol parser is added.
+
+- `success`: synchronous handler returns without a Relay error or known business
+  rejection; stream has a completed outcome with normal EOF/DONE and no errors,
+  or existing scanner DONE with no contrary facts; recognized `max_tokens` /
+  `max_output_tokens` incomplete outcomes also count as normal bounded generation.
+- `failure`: panic, Relay error, known protocol failure, business rejection,
+  stream errors, timeout/scanner failure, safety/content-policy incomplete outcome,
+  or EOF missing a terminal event when the adapter explicitly requires one.
+- `cancelled`: the **original incoming request context** is `context.Canceled`
+  before reliable completion, unless an explicit protocol failure or business rejection is already
+  known. A completed stream or a synchronous handler that returns normally wins over
+  a late cancellation (a client may close after reading its full response while
+  Relay cleanup still runs). Synchronous cancellation relies on the handler
+  returning a Relay error; adapters that swallow write errors cannot provide
+  that distinction. The channel lease's
+  child context is never used; releasing a slot cannot create this result.
+- `unknown`: no sufficient completion/failure fact: for example legacy stream EOF
+  without a terminal contract, missing stream status, handler stop, unconfirmed
+  disconnect, upstream-reported cancellation alone, or an unfamiliar incomplete
+  reason. An internal `context.Canceled` returned as a Relay error is failure,
+  not client cancellation. Incoming deadline expiry is failure, not cancellation.
+
+Current OpenAI chat/Responses, Claude and Gemini adapters have richer existing
+terminal state than some other providers. HTTP DONE reflects the gateway's
+existing transport convention, not a new guarantee of valid content, full usage
+or successful client delivery. Synchronous success likewise trusts the handler's
+existing validation. `PerformanceBusinessRejection` is a failure fact here; the
+performance module's broader `ignored` category is never translated to cancelled.
+No claim is made that all adapters have identical semantic precision.
+
+### Rejections and names
+
+A rejection increments only when the ordinary Relay slot acquisition returns
+`ErrChannelConcurrencyLimit`, before calling the upstream handler. Each rejected
+acquisition increments once. Redis errors, user limits and upstream 429 responses
+do not increment it. It is an **event count**, not upstream attempts or final
+failed requests. A later successful request/attempt cannot erase it. At this
+baseline a rejected slot stops the Relay (existing skip-retry behavior); this
+feature does not add a retry after rejection.
+
+Names come from the same fresh database projection as concurrency configuration.
+Empty/missing names emit no info mapping. Configuration read failure emits no
+mapping; a Redis count failure still permits the independently read name. A
+successful rename replaces the mapping on the next scrape, without touching any
+business counter. Names are current display metadata, not historical identity.
+Same-name channels remain distinct by ID. Names are administrator configuration
+and should not contain secrets.
+
+### PromQL: process totals, results and latency
+
+Use the `deployment` and `concurrency_domain` target labels in
+`prometheus.example.yml` on **every** target. A deployment identifies one gateway
+installation; a concurrency domain identifies one shared Redis database/instance
+(or the documented local domain). Do not reuse them for unrelated installations.
+Counters and histograms are process-local even with Redis: scrape every instance
+directly, never through a load balancer. Apply `rate`/`increase` **before** `sum`
+so individual process resets are handled correctly. New label combinations appear
+on their first event; rates require enough samples. A scrape outage can lose
+unobserved increments, especially across restart. These are not durable audit data.
+
+Per-model result distribution (requests/second, all four results retained):
+
+```promql
+sum by(deployment, concurrency_domain, model, result) (
+  rate(new_api_relay_requests_total[5m])
+)
+```
+
+All four result proportions, each divided by **all four outcomes for that model**:
+
+```promql
+new_api:relay_requests:rate5m
+/ on(deployment, concurrency_domain, model) group_left
+sum by(deployment, concurrency_domain, model) (new_api:relay_requests:rate5m)
+```
+
+Filter the numerator with `{result="success"}`, `failure`, `cancelled` or `unknown`
+for individual panels. The denominator must remain unfiltered. No traffic gives
+an undefined ratio; do not label it 100% success. Unknown is visible uncertainty,
+not success and not silently removed. Any optional success/(success+failure)
+panel must explicitly be labelled as excluding cancelled and unknown.
+
+P95 in seconds for each model/result (substitute `0.50` / `0.99` for P50 / P99):
+
+```promql
+histogram_quantile(0.95,
+  sum by(deployment, concurrency_domain, model, result, le) (
+    rate(new_api_relay_request_duration_seconds_bucket[5m])
+  )
+)
+```
+
+To include **all** outcomes in one latency distribution, omit `result` from the
+aggregation; to show successful latency only, filter `{result="success"}` first.
+Do not average per-instance quantiles. Cancelled and unknown have real duration
+samples and are not omitted from the all-outcome distribution.
+
+Per-model/channel rejection events per second and events over an hour:
+
+```promql
+sum by(deployment, concurrency_domain, model, channel_id) (
+  rate(new_api_channel_concurrency_rejected_total[5m])
+)
+sum by(deployment, concurrency_domain, model, channel_id) (
+  increase(new_api_channel_concurrency_rejected_total[1h])
+)
+```
+
+Here “rate” means events/second, not a fraction of channel attempts. An attempt
+count denominator is deliberately outside this phase; dividing by logical
+requests would mix different populations.
+
+### PromQL: unique names and rename propagation
+
+`concurrency.rules.yml` first deduplicates names by deployment/domain/ID/name,
+filters targets with `up != 1`, then excludes keys with more than one current
+name. `new_api:channel_info:unique` therefore has at most one RHS series per
+join key, even during replica disagreement or rename propagation. The conflicting
+keys remain visible in `new_api:channel_info:conflicting`.
+
+Use an inner join when only reliably named rows are desired:
+
+```promql
+new_api:channel_concurrency_rejected:rate5m
+* on(deployment, concurrency_domain, channel_id) group_left(channel_name)
+new_api:channel_info:unique
+```
+
+To retain ID-only rows while the mapping is missing/ambiguous, use a left-join
+pattern (recommended for alerts; always include `channel_id` in display):
+
+```promql
+(new_api:channel_concurrency_rejected:rate5m
+ * on(deployment, concurrency_domain, channel_id) group_left(channel_name)
+ new_api:channel_info:unique)
+or on(deployment, concurrency_domain, model, channel_id)
+new_api:channel_concurrency_rejected:rate5m
+```
+
+The same unique RHS can label `new_api:redis_concurrency_in_flight:deduplicated`
+and existing deduplicated limits. For local process gauges retain the instance
+until summing occupancy; never sum Redis-shared occupancy/limits across replicas.
+Do not join raw multi-replica info, join only by `channel_id`, or take `max` over
+names without detecting conflicts. During a rename the old name may remain until
+all targets are scraped; conflicting names are suppressed until agreement. No
+rule can detect a stale name when the only healthy target still reports it;
+the mapping is observational, not a cross-replica atomic configuration snapshot.
+
+The existing private-network `/metrics` isolation, 30-minute slot expiry,
+Redis outage/data-loss boundaries, collection status and user-resource metrics
+remain unchanged. No lease renewal/cancellation, persistence, log scanning,
+actual usage adjustment, attempt metric or first-content timing is introduced.

@@ -1,0 +1,130 @@
+{
+  "scenarios": [
+    {
+      "node": 33681,
+      "scenario": "sync",
+      "http": 200,
+      "expected_result": "success",
+      "upstream_attempts": 1
+    },
+    {
+      "node": 33681,
+      "scenario": "stream",
+      "http": 200,
+      "expected_result": "success",
+      "upstream_attempts": 1
+    },
+    {
+      "node": 33681,
+      "scenario": "sync failure",
+      "http": 400,
+      "expected_result": "failure",
+      "upstream_attempts": 1
+    },
+    {
+      "node": 33681,
+      "scenario": "stream failure after 200",
+      "http": 200,
+      "expected_result": "failure",
+      "upstream_attempts": 1
+    },
+    {
+      "node": 33681,
+      "scenario": "legacy stream",
+      "http": 200,
+      "expected_result": "unknown",
+      "upstream_attempts": 1
+    },
+    {
+      "node": 33681,
+      "scenario": "retry",
+      "http": 200,
+      "expected_result": "success",
+      "upstream_attempts": 2
+    },
+    {
+      "node": 33681,
+      "scenario": "same name other ID",
+      "http": 200,
+      "expected_result": "success",
+      "upstream_attempts": 1
+    },
+    {
+      "node": 33681,
+      "scenario": "client cancel",
+      "expected_result": "cancelled"
+    },
+    {
+      "node": 33682,
+      "scenario": "sync",
+      "http": 200,
+      "expected_result": "success",
+      "upstream_attempts": 1
+    },
+    {
+      "node": 33682,
+      "scenario": "stream",
+      "http": 200,
+      "expected_result": "success",
+      "upstream_attempts": 1
+    },
+    {
+      "node": 33682,
+      "scenario": "sync failure",
+      "http": 400,
+      "expected_result": "failure",
+      "upstream_attempts": 1
+    },
+    {
+      "node": 33682,
+      "scenario": "stream failure after 200",
+      "http": 200,
+      "expected_result": "failure",
+      "upstream_attempts": 1
+    },
+    {
+      "node": 33682,
+      "scenario": "legacy stream",
+      "http": 200,
+      "expected_result": "unknown",
+      "upstream_attempts": 1
+    },
+    {
+      "node": 33682,
+      "scenario": "retry",
+      "http": 200,
+      "expected_result": "success",
+      "upstream_attempts": 2
+    },
+    {
+      "node": 33682,
+      "scenario": "same name other ID",
+      "http": 200,
+      "expected_result": "success",
+      "upstream_attempts": 1
+    },
+    {
+      "node": 33682,
+      "scenario": "client cancel",
+      "expected_result": "cancelled"
+    },
+    {
+      "scenario": "cross-node channel rejection",
+      "http": 429,
+      "upstream_attempts": 0,
+      "raw_replica_gauges": [
+        1,
+        1
+      ],
+      "deduplicated": 1
+    }
+  ],
+  "counter_delta": {
+    "new_api_relay_requests_total{model=\"gpt-4o-mini\",result=\"cancelled\"}": 2.0,
+    "new_api_relay_requests_total{model=\"gpt-4o-mini\",result=\"failure\"}": 5.0,
+    "new_api_relay_requests_total{model=\"gpt-4o-mini\",result=\"success\"}": 7.0,
+    "new_api_relay_requests_total{model=\"legacy-demo\",result=\"unknown\"}": 2.0,
+    "new_api_relay_requests_total{model=\"secondary-demo\",result=\"success\"}": 2.0,
+    "new_api_channel_concurrency_rejected_total{channel_id=\"1\",model=\"gpt-4o-mini\"}": 1.0
+  }
+}

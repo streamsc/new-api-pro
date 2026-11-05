@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/pkg/concurrencymetrics"
+	"github.com/QuantumNous/new-api/pkg/relaymetrics"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
@@ -62,7 +63,7 @@ func (h *concurrencyMetricsHandler) serve(c *gin.Context) {
 		_ = response.Flush()
 		return
 	}
-	registry.MustRegister(service.UserResourcesCollector{Context: ctx})
+	registry.MustRegister(service.UserResourcesCollector{Context: ctx}, relaymetrics.Default)
 	promhttp.HandlerFor(registry, promhttp.HandlerOpts{
 		ErrorHandling: promhttp.HTTPErrorOnError,
 		ErrorLog:      metricsErrorLogger{ctx: c.Request.Context()},

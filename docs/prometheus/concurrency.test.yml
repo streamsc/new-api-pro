@@ -142,3 +142,67 @@ tests:
       - expr: "new_api:redis_concurrency_in_flight:deduplicated{concurrency_domain=\"r1\"}"
         eval_time: 2m
         exp_samples: []
+  - name: names deduplicate and fail closed during rename propagation
+    interval: 1m
+    input_series:
+      - series: 'up{job="new-api",instance="a",deployment="one",concurrency_domain="r"}'
+        values: '1 1 1'
+      - series: 'up{job="new-api",instance="b",deployment="one",concurrency_domain="r"}'
+        values: '1 1 1'
+      - series: 'up{job="new-api",instance="c",deployment="two",concurrency_domain="r"}'
+        values: '1 1 1'
+      - series: 'new_api_channel_info{job="new-api",instance="a",deployment="one",concurrency_domain="r",channel_id="1",channel_name="old"}'
+        values: '1 stale stale'
+      - series: 'new_api_channel_info{job="new-api",instance="a",deployment="one",concurrency_domain="r",channel_id="1",channel_name="new"}'
+        values: '_ 1 1'
+      - series: 'new_api_channel_info{job="new-api",instance="b",deployment="one",concurrency_domain="r",channel_id="1",channel_name="old"}'
+        values: '1 1 stale'
+      - series: 'new_api_channel_info{job="new-api",instance="b",deployment="one",concurrency_domain="r",channel_id="1",channel_name="new"}'
+        values: '_ _ 1'
+      - series: 'new_api_channel_info{job="new-api",instance="c",deployment="two",concurrency_domain="r",channel_id="1",channel_name="other-deployment"}'
+        values: '1 1 1'
+      - series: 'new_api_channel_info{job="new-api",instance="a",deployment="one",concurrency_domain="r",channel_id="2",channel_name="new"}'
+        values: '1 1 1'
+    promql_expr_test:
+      - expr: new_api:channel_info:unique{deployment="one",channel_id="1"}
+        eval_time: 0m
+        exp_samples:
+          - labels: '{__name__="new_api:channel_info:unique",deployment="one",concurrency_domain="r",channel_id="1",channel_name="old"}'
+            value: 1
+      - expr: new_api:channel_info:unique{deployment="one",channel_id="1"}
+        eval_time: 1m
+        exp_samples: []
+      - expr: new_api:channel_info:unique{deployment="one"}
+        eval_time: 2m
+        exp_samples:
+          - labels: '{__name__="new_api:channel_info:unique",deployment="one",concurrency_domain="r",channel_id="1",channel_name="new"}'
+            value: 1
+          - labels: '{__name__="new_api:channel_info:unique",deployment="one",concurrency_domain="r",channel_id="2",channel_name="new"}'
+            value: 1
+      - expr: new_api:channel_info:unique{deployment="two"}
+        eval_time: 1m
+        exp_samples:
+          - labels: '{__name__="new_api:channel_info:unique",deployment="two",concurrency_domain="r",channel_id="1",channel_name="other-deployment"}'
+            value: 1
+  - name: rate before sum survives independent process restarts
+    interval: 1m
+    input_series:
+      - series: 'new_api_relay_requests_total{instance="a",deployment="one",concurrency_domain="r",model="m",result="success"}'
+        values: '0 60 120 0 60 120'
+      - series: 'new_api_relay_requests_total{instance="b",deployment="one",concurrency_domain="r",model="m",result="success"}'
+        values: '0 60 120 180 240 300'
+      - series: 'new_api_channel_concurrency_rejected_total{instance="a",deployment="one",concurrency_domain="r",model="m",channel_id="1"}'
+        values: '0 60 120 0 60 120'
+      - series: 'new_api_channel_concurrency_rejected_total{instance="b",deployment="one",concurrency_domain="r",model="m",channel_id="1"}'
+        values: '0 60 120 180 240 300'
+    promql_expr_test:
+      - expr: new_api:relay_requests:rate5m
+        eval_time: 5m
+        exp_samples:
+          - labels: '{__name__="new_api:relay_requests:rate5m",deployment="one",concurrency_domain="r",model="m",result="success"}'
+            value: 1.75
+      - expr: new_api:channel_concurrency_rejected:rate5m
+        eval_time: 5m
+        exp_samples:
+          - labels: '{__name__="new_api:channel_concurrency_rejected:rate5m",deployment="one",concurrency_domain="r",model="m",channel_id="1"}'
+            value: 1.75

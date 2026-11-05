@@ -42,7 +42,7 @@ func collectChannelConcurrency(ctx context.Context, scope string, readConfigs fu
 		if maximum == nil {
 			snapshot.ConfigSuccess = false
 		}
-		snapshot.Channels = append(snapshot.Channels, concurrencymetrics.ChannelSample{ChannelID: channel.ID, Limit: maximum})
+		snapshot.Channels = append(snapshot.Channels, concurrencymetrics.ChannelSample{ChannelID: channel.ID, Name: channel.Name, Limit: maximum})
 		ids = append(ids, channel.ID)
 	}
 	if len(ids) == 0 {

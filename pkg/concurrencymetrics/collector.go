@@ -8,6 +8,7 @@ import (
 
 type ChannelSample struct {
 	ChannelID int
+	Name      string
 	InFlight  *int
 	Limit     *int
 }
@@ -21,6 +22,7 @@ type Snapshot struct {
 }
 
 var (
+	channelInfo   = prometheus.NewDesc("new_api_channel_info", "Current configured channel name; not historical identity.", []string{"channel_id", "channel_name"}, nil)
 	inFlight      = prometheus.NewDesc("new_api_channel_concurrency_in_flight", "Current valid gateway concurrency reservations.", []string{"channel_id", "scope"}, nil)
 	limit         = prometheus.NewDesc("new_api_channel_concurrency_limit", "Persisted concurrency limit; absent for unlimited or invalid configuration.", []string{"channel_id", "scope"}, nil)
 	limitEnabled  = prometheus.NewDesc("new_api_channel_concurrency_limit_enabled", "Whether the persisted concurrency limit is enabled.", []string{"channel_id", "scope"}, nil)
@@ -32,6 +34,7 @@ type Collector struct {
 }
 
 func (c Collector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- channelInfo
 	ch <- inFlight
 	ch <- limit
 	ch <- limitEnabled
@@ -41,6 +44,9 @@ func (c Collector) Describe(ch chan<- *prometheus.Desc) {
 func (c Collector) Collect(ch chan<- prometheus.Metric) {
 	for _, sample := range c.Snapshot.Channels {
 		id := strconv.Itoa(sample.ChannelID)
+		if sample.Name != "" {
+			c.emit(ch, channelInfo, 1, id, sample.Name)
+		}
 		if sample.InFlight != nil {
 			c.emit(ch, inFlight, float64(*sample.InFlight), id, c.Snapshot.Scope)
 		}
