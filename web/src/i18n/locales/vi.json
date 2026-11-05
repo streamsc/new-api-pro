@@ -7367,6 +7367,23 @@
     "A reason of 1 to 1000 characters is required": "A reason of 1 to 1000 characters is required",
     "Use the user resource settings endpoint with a change reason": "Use the user resource settings endpoint with a change reason",
     "Concurrency": "Concurrency",
-    "Normal": "Normal"
+    "Normal": "Normal",
+    "Estimated input TPM": "TPM đầu vào ước tính",
+    "Inherit default": "Kế thừa mặc định",
+    "Limit": "Giới hạn",
+    "Default limits": "Giới hạn mặc định",
+    "Add user override": "Thêm cấu hình riêng cho người dùng",
+    "Remove override": "Xóa cấu hình riêng",
+    "Enter a unique positive user ID.": "Nhập ID người dùng là số nguyên dương không trùng lặp.",
+    "A limit of 0 blocks new requests. RPM and input TPM use a rolling 60-second window.": "Giới hạn 0 chặn yêu cầu mới. RPM và TPM đầu vào sử dụng cửa sổ trượt 60 giây.",
+    "User overrides inherit default limits unless changed. Changes preserve usage counters and sync to other nodes within the configured interval (60 seconds by default).": "Cấu hình riêng kế thừa giới hạn mặc định nếu không thay đổi. Thay đổi giữ nguyên bộ đếm và đồng bộ sang các nút khác theo chu kỳ cấu hình (mặc định 60 giây).",
+    "Search by username or ID": "Tìm theo tên người dùng hoặc ID",
+    "Username unavailable": "Không lấy được tên người dùng",
+    "Select a user without an existing override.": "Chọn người dùng chưa có cấu hình riêng.",
+    "Edit user override": "Sửa cấu hình riêng",
+    "Apply changes to the draft, then save the page to publish them.": "Áp dụng vào bản nháp, sau đó lưu trang để có hiệu lực.",
+    "Find user override": "Tìm cấu hình riêng của người dùng",
+    "No user overrides found. Other users inherit the default limits.": "Không tìm thấy cấu hình riêng. Người dùng khác kế thừa giới hạn mặc định.",
+    "This user will inherit the default limits after saving.": "Sau khi lưu, người dùng này sẽ kế thừa giới hạn mặc định."
   }
 }

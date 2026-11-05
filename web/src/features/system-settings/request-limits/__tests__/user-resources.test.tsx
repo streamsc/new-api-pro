@@ -23,6 +23,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -48,8 +49,31 @@ beforeEach(() => {
   })
   actions = document.createElement('div')
   document.body.append(actions)
-  vi.spyOn(api, 'get').mockResolvedValue({
-    data: { success: true, data: config },
+  vi.spyOn(api, 'get').mockImplementation(async (url) => {
+    if (url === '/api/option/user_resources') {
+      return { data: { success: true, data: config } }
+    }
+    if (url.startsWith('/api/user/search?')) {
+      return {
+        data: {
+          success: true,
+          data: {
+            items: [
+              { id: 42, username: 'alice' },
+              { id: 43, username: 'bob' },
+            ],
+            total: 2,
+          },
+        },
+      }
+    }
+    const id = Number(url.split('/').at(-1))
+    return {
+      data: {
+        success: true,
+        data: { id, username: id === 42 ? 'alice' : 'bob' },
+      },
+    }
   })
 })
 afterEach(() => {
@@ -72,6 +96,7 @@ it('requires a reason and saves explicit zero and unlimited overrides', async ()
     .mockResolvedValue({ data: { success: true } })
   const user = userEvent.setup()
   mount()
+  await user.click(await screen.findByRole('tab', { name: 'JSON' }))
   await screen.findByRole('textbox', { name: 'Defaults and user overrides' })
   await user.click(screen.getByRole('button', { name: 'Save Changes' }))
   expect(put).not.toHaveBeenCalled()
@@ -93,6 +118,7 @@ it('rejects negative resource limits without sending a write', async () => {
     .mockResolvedValue({ data: { success: true } })
   const user = userEvent.setup()
   mount()
+  await user.click(await screen.findByRole('tab', { name: 'JSON' }))
   const editor = await screen.findByRole('textbox', {
     name: 'Defaults and user overrides',
   })
@@ -120,6 +146,7 @@ it('retains the change reason and edited config after a failed save', async () =
   })
   const user = userEvent.setup()
   mount()
+  await user.click(await screen.findByRole('tab', { name: 'JSON' }))
   const editor = await screen.findByRole('textbox', {
     name: 'Defaults and user overrides',
   })
@@ -135,4 +162,177 @@ it('retains the change reason and edited config after a failed save', async () =
     screen.getByRole('textbox', { name: 'Reason for change' })
   ).toHaveValue('Keep this reason')
   expect(editor).toHaveValue(JSON.stringify(config, null, 2))
+})
+
+it('edits in a drawer, cancels without changing the draft and applies without publishing', async () => {
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  mount()
+  await user.click(await screen.findByRole('button', { name: 'Edit 42' }))
+  let drawer = screen.getByRole('dialog')
+  await user.selectOptions(
+    within(drawer).getByRole('combobox', { name: 'Concurrency' }),
+    'limited'
+  )
+  fireEvent.change(
+    within(drawer).getByRole('spinbutton', { name: 'Concurrency Limit' }),
+    { target: { value: '7' } }
+  )
+  await user.click(within(drawer).getByRole('button', { name: 'Cancel' }))
+  await user.click(screen.getByRole('button', { name: 'Edit 42' }))
+  drawer = screen.getByRole('dialog')
+  expect(
+    within(drawer).getByRole('combobox', { name: 'Concurrency' })
+  ).toHaveValue('inherit')
+  await user.selectOptions(
+    within(drawer).getByRole('combobox', { name: 'Concurrency' }),
+    'limited'
+  )
+  await user.click(within(drawer).getByRole('button', { name: 'Apply' }))
+  expect(put).not.toHaveBeenCalled()
+  await user.click(screen.getByRole('tab', { name: 'JSON' }))
+  expect(
+    JSON.parse(
+      (
+        screen.getByRole('textbox', {
+          name: 'Defaults and user overrides',
+        }) as HTMLTextAreaElement
+      ).value
+    ).users['42']
+  ).toEqual({
+    concurrency: { enabled: true, limit: 0 },
+    rpm: { enabled: false, limit: 0 },
+  })
+  await user.type(
+    screen.getByRole('textbox', { name: 'Reason for change' }),
+    'Review limits'
+  )
+  await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+  await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
+})
+
+it('adds a selected username using its ID and rejects duplicate overrides', async () => {
+  const user = userEvent.setup()
+  mount()
+  await user.click(
+    await screen.findByRole('button', { name: 'Add user override' })
+  )
+  await user.click(
+    within(screen.getByRole('dialog')).getByRole('combobox', {
+      name: 'Username',
+    })
+  )
+  await user.click(await screen.findByRole('option', { name: 'alice · ID 42' }))
+  await user.click(screen.getByRole('button', { name: 'Apply' }))
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'Select a user without an existing override.'
+  )
+  await user.click(
+    within(screen.getByRole('dialog')).getByRole('combobox', {
+      name: 'Username',
+    })
+  )
+  await user.click(await screen.findByRole('option', { name: 'bob · ID 43' }))
+  await user.click(screen.getByRole('button', { name: 'Apply' }))
+  expect(await screen.findByRole('button', { name: 'Edit 43' })).toBeVisible()
+  await user.click(screen.getByRole('tab', { name: 'JSON' }))
+  expect(
+    JSON.parse(
+      (
+        screen.getByRole('textbox', {
+          name: 'Defaults and user overrides',
+        }) as HTMLTextAreaElement
+      ).value
+    ).users
+  ).toEqual({ ...config.users, '43': {} })
+})
+
+it('paginates 1001 overrides and only fetches usernames for visible rows', async () => {
+  const users = Object.fromEntries(
+    Array.from({ length: 1001 }, (_, i) => [String(i + 1), {}])
+  )
+  vi.mocked(api.get).mockImplementation(async (url) => {
+    if (url === '/api/option/user_resources') {
+      return { data: { success: true, data: { ...config, users } } }
+    }
+    if (url.startsWith('/api/user/search?')) {
+      return {
+        data: {
+          success: true,
+          data: { items: [{ id: 1001, username: 'last-user' }], total: 1 },
+        },
+      }
+    }
+    const id = Number(url.split('/').at(-1))
+    return { data: { success: true, data: { id, username: `user-${id}` } } }
+  })
+  const user = userEvent.setup()
+  mount()
+  await screen.findByRole('button', { name: 'Edit 20' })
+  expect(screen.getAllByRole('row')).toHaveLength(21)
+  expect(
+    screen.queryByRole('button', { name: 'Edit 21' })
+  ).not.toBeInTheDocument()
+  const userCalls = () =>
+    vi
+      .mocked(api.get)
+      .mock.calls.filter(([url]) => /^\/api\/user\/\d+$/.test(url))
+  await waitFor(() => expect(userCalls()).toHaveLength(20))
+  await user.click(screen.getByRole('button', { name: 'Go to next page' }))
+  await screen.findByRole('button', { name: 'Edit 40' })
+  await waitFor(() => expect(userCalls()).toHaveLength(40))
+  await user.type(
+    screen.getByRole('combobox', { name: 'Find user override' }),
+    'last-user'
+  )
+  await waitFor(() =>
+    expect(api.get).toHaveBeenCalledWith(
+      '/api/user/search?keyword=last-user&group=&p=1&page_size=20'
+    )
+  )
+  await user.click(
+    await screen.findByRole('option', { name: 'last-user · ID 1001' })
+  )
+  expect(await screen.findByRole('button', { name: 'Edit 1001' })).toBeVisible()
+  expect(screen.getAllByRole('row')).toHaveLength(2)
+  await user.click(screen.getByRole('button', { name: 'Clear' }))
+  expect(await screen.findByRole('button', { name: 'Edit 1' })).toBeVisible()
+  await user.click(screen.getByRole('tab', { name: 'JSON' }))
+  expect(
+    Object.keys(
+      JSON.parse(
+        (
+          screen.getByRole('textbox', {
+            name: 'Defaults and user overrides',
+          }) as HTMLTextAreaElement
+        ).value
+      ).users
+    )
+  ).toHaveLength(1001)
+})
+
+it('confirms removal and preserves invalid JSON when switching modes', async () => {
+  const user = userEvent.setup()
+  mount()
+  await user.click(await screen.findByRole('button', { name: 'Actions 42' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Remove override' }))
+  await user.click(
+    within(screen.getByRole('alertdialog')).getByRole('button', {
+      name: 'Remove override',
+    })
+  )
+  await user.click(screen.getByRole('tab', { name: 'JSON' }))
+  const editor = screen.getByRole('textbox', {
+    name: 'Defaults and user overrides',
+  })
+  expect(JSON.parse((editor as HTMLTextAreaElement).value).users).toEqual({})
+  fireEvent.input(editor, { target: { value: '{invalid' } })
+  await user.click(screen.getByRole('tab', { name: 'Visual' }))
+  expect(editor).toHaveValue('{invalid')
+  expect(screen.getByRole('tab', { name: 'JSON' })).toHaveAttribute(
+    'aria-selected',
+    'true'
+  )
 })

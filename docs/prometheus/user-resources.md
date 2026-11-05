@@ -57,7 +57,17 @@ Restarting replicas against the same Redis database preserves slots. No
 compatibility or recovery coordinator is installed.
 
 Root administrators use **System settings → Security → User resource limits**.
-The existing JSON editor manages defaults and optional per-user overrides:
+The visual editor manages default limits and optional per-user overrides. Switch
+to JSON to edit the same draft directly. Search by username or ID to select a user;
+labels show usernames and IDs while the configuration remains keyed by user ID.
+User overrides use a compact table with 20 rows per page. Only visible rows
+resolve usernames. Search and select a username or ID to locate its override.
+Add/edit drawers apply changes to the shared draft; saving the page publishes them.
+The JSON editor always contains the complete configuration, not just the current page.
+Existing overrides retain their IDs and settings if a username lookup fails.
+Each user resource can inherit its default,
+be unlimited, or use an explicit limit; a limit of zero blocks new requests.
+Invalid JSON must be corrected before switching back to visual editing. Example:
 
 ```json
 {

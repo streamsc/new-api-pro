@@ -7367,6 +7367,23 @@
     "A reason of 1 to 1000 characters is required": "A reason of 1 to 1000 characters is required",
     "Use the user resource settings endpoint with a change reason": "Use the user resource settings endpoint with a change reason",
     "Concurrency": "Concurrency",
-    "Normal": "Normal"
+    "Normal": "Normal",
+    "Estimated input TPM": "TPM d’entrée estimés",
+    "Inherit default": "Hériter de la valeur par défaut",
+    "Limit": "Limite",
+    "Default limits": "Limites par défaut",
+    "Add user override": "Ajouter une exception utilisateur",
+    "Remove override": "Supprimer l’exception",
+    "Enter a unique positive user ID.": "Saisissez un identifiant utilisateur entier positif unique.",
+    "A limit of 0 blocks new requests. RPM and input TPM use a rolling 60-second window.": "Une limite de 0 bloque les nouvelles requêtes. RPM et TPM d’entrée utilisent une fenêtre glissante de 60 secondes.",
+    "User overrides inherit default limits unless changed. Changes preserve usage counters and sync to other nodes within the configured interval (60 seconds by default).": "Les exceptions utilisateur héritent des limites par défaut. Les modifications conservent les compteurs et sont synchronisées avec les autres nœuds selon l’intervalle configuré (60 secondes par défaut).",
+    "Search by username or ID": "Rechercher par nom ou ID",
+    "Username unavailable": "Nom d’utilisateur indisponible",
+    "Select a user without an existing override.": "Sélectionnez un utilisateur sans exception existante.",
+    "Edit user override": "Modifier l’exception utilisateur",
+    "Apply changes to the draft, then save the page to publish them.": "Appliquez au brouillon, puis enregistrez la page pour publier.",
+    "Find user override": "Rechercher une exception utilisateur",
+    "No user overrides found. Other users inherit the default limits.": "Aucune exception trouvée. Les autres utilisateurs héritent des limites par défaut.",
+    "This user will inherit the default limits after saving.": "Après enregistrement, cet utilisateur héritera des limites par défaut."
   }
 }
