@@ -322,3 +322,139 @@ Follow-up verification passed: focused i18n/router/controller regressions;
 `make test` across the root, relaykit and tokenkit modules; `GOWORK=off go vet ./...`
 and `GOWORK=off go build ./...` independently in all three modules; and
 `git diff --check`. Local logs: `output/issue8-validation/ci-fix-*.log`.
+
+## Issue #6 收敛范围验收（2026-11-05 至 2026-11-06）
+
+### 实现基线与改动范围
+
+基线为 `5c8c23c36901b1d2f9ec6a0171e76370242b8ecb`。实施前已完整读取
+2026-11-05 更新的 #6 和总需求 #4（更新时间分别为 `09:57:05Z`、`09:57:03Z`）。
+本次交付渠道名称映射、渠道并发拒绝计数、逻辑请求结果和总耗时四项指标。
+原有未跟踪文件均已保留。
+
+渠道名称复用现有采集快照；逻辑请求计数、耗时和结果分类集中在 `pkg/relaymetrics`。
+主程序仅在选中渠道时识别模型、Relay 最外层结束处理、渠道槽位拒绝分支和指标注册处接入。
+未改动适配器或独立模块，也未引入上游合并、实际 usage 或首内容识别工作。
+
+### 自动化验证
+
+以下检查已通过：
+
+- `make test`：根模块、relaykit、tokenkit 测试套件。
+- 针对逻辑结果、Relay 边界、取消及指标 HTTP 接口的
+  `go test -race ./pkg/relaymetrics ./controller`；此前并发服务相关竞态回归也已通过。
+- `go vet ./controller ./middleware ./model ./service ./pkg/relaymetrics ./pkg/concurrencymetrics`、
+  `go build ./...`、`git diff --check`。
+- 真实 SQLite **3.50.4**、MySQL **8.0.46**、PostgreSQL **16.15** 上的
+  `TestChannelConcurrencyConfigProjection` 和 `TestUserResourceOptionsDatabaseMatrix`。
+  覆盖同名渠道、改名、删除、无效配置、读取取消和数据库阻塞超时。
+  查询仅增加读取已有名称列，没有新增表或迁移。
+- 专用 Redis **7** 上的 `TestChannelConcurrencyRealRedis` 和
+  `TestUserResourcesRealRedisProcesses`，覆盖共享状态、读取失败、多进程和数据库隔离。
+- Prometheus **3.2.1** 的 `promtool test rules docs/prometheus/concurrency.test.yml`：
+  覆盖有限/无限制上限、共享/进程作用域、同名不同 ID、跨部署隔离、改名期间冲突抑制、
+  关联右侧唯一性和各进程独立重启。官方解析器及严格注册表检查验证了名称、标签、类型、桶边界和样本。
+
+真实 Relay 集成测试覆盖同步/流式成功、同步失败、HTTP 200 后流式失败、缺少必需终止事件、
+Ollama 旧流式路径的 `unknown`、同步/流式取消、重试后成功（两次上游调用只记一个逻辑请求）、
+上游 429、渠道槽位拒绝、Redis 申请失败、用户准入拒绝及提前校验返回。
+分类测试另覆盖 panic、内部取消、响应完成后客户端关闭、业务拒绝、安全策略拒绝、未知不完整原因、
+缺少流式状态，以及所有结果的耗时样本。现有性能页面的健康采样口径保持不变。
+
+### 本地 Prometheus + Grafana 现场验收
+
+按用户要求，搭建独立 Docker Compose 环境：两个包含最终补丁的 **Linux ARM64 网关**、
+共享测试 SQLite 和 Redis、Python 模拟上游、Prometheus **3.2.1**、Grafana **12.3.0**。
+所有对外端口均绑定 `127.0.0.1`。已比对容器内与最终本地构建二进制的校验和。
+现有预生产环境未被复用或修改。
+
+本地访问地址（保留运行，供用户确认）：
+
+- Grafana：[验收看板](http://127.0.0.1:33630/d/issue6-local)
+- Prometheus：[采集目标](http://127.0.0.1:33690/targets)
+- 网关指标：[副本 A](http://127.0.0.1:33681/metrics)、[副本 B](http://127.0.0.1:33682/metrics)
+
+运行目录为 `/tmp/issue6-monitoring`。性能对比使用的基线网关已停止，临时数据库验证容器已移除。
+测试流量已结束。Grafana 提供匿名只读访问；测试令牌和数据库仅存放在运行目录，不复制到验收资料中。
+确认后可执行 `docker compose -f /tmp/issue6-monitoring/compose.yml down` 停止验收环境。
+
+通过真实 HTTP、原始指标和 Prometheus API 核验的结果如下：
+
+| 验收项 | 实测结果 |
+| --- | --- |
+| 采集及看板 | 两个目标均为 UP；看板查询无错误或警告。展示结果分布、包含 unknown 的比例、P50/P95/P99、拒绝率、名称、容量、采集状态及原有用户额度指标。 |
+| 最终批次 | **18 个逻辑请求：成功 9、失败 5、取消 2、unknown 2；渠道拒绝恰好 1 次。** |
+| 按模型核对 | gpt-4o-mini：成功 7、失败 5、取消 2；legacy-demo：unknown 2；secondary-demo：成功 2。 |
+| 重试和拒绝边界 | 两个重试场景各调用上游两次，逻辑请求各记一次。槽位拒绝未调用上游。 |
+| 共享并发去重 | 保持一个请求在途时，两副本均输出 1；Prometheus 去重后为 **1**。 |
+| 无限上限及同名渠道 | 渠道 2 的启用标记为 0，不输出数值上限；同名渠道 1、3 通过 ID 区分。 |
+| 改名 | 渠道 1 输出新名称并停止输出旧映射，拒绝 Counter 不重置；两副本及唯一名称规则收敛。改名冲突和跨部署隔离另有明确规则测试。 |
+| 用户 RPM 拒绝 | 临时设为 0 后，两节点均拒绝并增加用户拒绝计数，渠道拒绝计数不变；随后恢复配置。 |
+| Redis 故障 | 暂停 Redis 后，在途 Gauge 缺失，采集成功标记为 0；独立可读的名称和本地请求 Counter 仍存在。恢复 Redis 后采集正常，不以假零代替缺失。 |
+| 实际进程重启 | Counter/Histogram 重置，Prometheus `resets(...)` 正确识别；所有模型/结果的 Histogram `_count` 与请求 Counter 一致。 |
+
+现场测试发现并修正了一个生命周期边界：客户端可能已收到完整同步响应并关闭连接，而 Relay 仍在清理。
+同步处理器正常返回被视为完成事实，因此稍后的 context 取消不会把成功误记为取消。
+同步读取响应体时发生的真实取消会返回 Relay 错误，仍归为取消；已知业务拒绝也优先于稍后的取消。
+适配器若吞掉写出错误，现有状态无法提供同等区分精度；该局限已记录，未为监控增加协议解析或写出跟踪。
+
+### 截图与原始证据
+
+以下截图由真实浏览器采集并完成目视检查；前五张保留原始英文界面作为测试过程证据：
+
+- `output/playwright/issue6-monitoring/01-overview.png`：指标总览。
+- `output/playwright/issue6-monitoring/02-capacity-and-users.png`：容量和用户额度。
+- `output/playwright/issue6-monitoring/03-prometheus-targets.png`：两个采集目标均正常。
+- `output/playwright/issue6-monitoring/04-rename-and-recovery.png`：改名及恢复过程。
+- `output/playwright/issue6-monitoring/05-final-batch.png`：最终二进制的精确 18 请求批次。
+- `output/playwright/issue6-monitoring/06-acceptance-zh.png`：中文验收看板，同一固定时间范围。
+
+`output/issue6-validation/review-url.txt` 保存了固定时间范围的看板链接，便于测试结束后回看。
+
+原始证据和可复现配置位于 `output/issue6-validation/`：
+`live-acceptance.json`、`live-lifecycle.json`、在途/改名/故障/重启的 `.prom` 快照、
+`dashboard-query-checks.json`、`database-matrix.log`、`redis-regressions.log`、
+`promql-rules.log`、最终测试/构建日志，以及 `monitoring/` 中的配置和脚本。
+这些资料中的身份均为测试数据。
+
+### 同负载性能对比
+
+从上述未修改的 HEAD 单独构建基线二进制。三种模式交替执行，**每种 3 轮，每轮 300 请求**，
+固定 **50 请求/秒、4 个客户端工作线程**，使用同一模拟上游、共享测试 SQLite/Redis 和免费按次定价。
+每轮等待逻辑请求清理完成后再开始下一轮。三种模式均保留原有用户额度指标。
+
+- 基线：未加入本次指标记录。
+- 启用记录：包含本次补丁，不执行周期抓取。
+- 记录并抓取：每 **100ms** 完整 HTTP 抓取一次 `/metrics`。
+
+对比期间暂停 Prometheus 周期抓取，结束后恢复。渠道和用户并发上限在所有模式下统一临时提高，
+测量后恢复原配置。
+
+三轮各项统计值的中位数如下，单位为毫秒；环境为 Apple M4 / Docker Desktop ARM64：
+
+| 模式 | 平均耗时 | P50 | P95 | P99 |
+| --- | ---: | ---: | ---: | ---: |
+| 基线 | 9.121 | 6.575 | 14.390 | 101.396 |
+| 启用记录 | 7.255 | 7.016 | 10.621 | 16.639 |
+| 记录并抓取 | 8.017 | 6.124 | 14.115 | 60.794 |
+
+**2,700 个测量请求全部成功，抓取也全部成功**，三种模式均维持约 50 请求/秒。
+表中测量的是客户端观察到的 HTTP 耗时；指标 Histogram 的边界还包含后续清理，两者不能直接等同。
+`BenchmarkLogicalMetrics` 另提供分类、记录和 HTTP 指标输出的独立微基准。
+
+尾延迟波动较大，不能据此宣称性能提升或保证生产环境开销。
+前期不限速探索曾使 SQLite 单写入端在响应已送达后的清理阶段积压，并触发准入拒绝；
+该结果未混入受控性能对比。最终固定到达速率并逐轮等待清理，排除了这一干扰。
+各轮请求、抓取和清理等待数据见 `live-load-comparison.json`、`live-load.log`。
+未执行生产规模标签基数、持续容量、真实远端供应商矩阵或完整 30 分钟墙钟耐久测试。
+
+### 支持范围与后续上游同步风险
+
+本次同时回核了 #4 第一阶段的有限/无限制上限、零在途、读取失败和共享计数域行为。
+指标名称、标签归并、桶边界、入口、分类精度和查询分母已在 README 固定。
+实际 Token 用量、渠道尝试、首次上游事件和首内容耗时均不属于本期验收。
+Realtime、Responses WebSocket、异步/被插件接管的请求，以及 Relay 前的拒绝不纳入逻辑请求指标。
+
+后续同步上游时，应重点检查 Relay 最外层结束处理顺序、原始请求 context 的捕获、唯一槽位拒绝分支、
+选中渠道的模型归并及 StreamStatus 语义，并重跑集成、竞态、规则和真实客户端关闭连接测试。
+不要恢复租约丢失取消行为，也不要让 relaykit 依赖宿主 Prometheus 注册表。

@@ -48,6 +48,7 @@ func TestChannelConcurrencyConfigProjection(t *testing.T) {
 			// The fixture deliberately has no credential or full Channel columns.
 			type row struct {
 				ID      int
+				Name    string
 				Setting *string
 				Status  int
 			}
@@ -58,10 +59,10 @@ func TestChannelConcurrencyConfigProjection(t *testing.T) {
 			require.NoError(t, err)
 			assert.Empty(t, rows)
 			broken := "{broken"
-			require.NoError(t, db.Table("channels").Create(&[]row{{ID: 1, Setting: &broken, Status: 2}, {ID: 2, Status: 1}}).Error)
+			require.NoError(t, db.Table("channels").Create(&[]row{{ID: 1, Name: "same", Setting: &broken, Status: 2}, {ID: 2, Name: "same", Status: 1}}).Error)
 			rows, err = GetChannelConcurrencyConfigs(context.Background())
 			require.NoError(t, err)
-			assert.ElementsMatch(t, []ChannelConcurrencyConfig{{ID: 1, Setting: &broken}, {ID: 2}}, rows)
+			assert.ElementsMatch(t, []ChannelConcurrencyConfig{{ID: 1, Name: "same", Setting: &broken}, {ID: 2, Name: "same"}}, rows)
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
 			_, err = GetChannelConcurrencyConfigs(ctx)
@@ -93,11 +94,11 @@ func TestChannelConcurrencyConfigProjection(t *testing.T) {
 				require.NoError(t, connection.Close())
 			}
 			updated := `{"max_concurrency":0}`
-			require.NoError(t, db.Table("channels").Where("id = ?", 1).Update("setting", updated).Error)
+			require.NoError(t, db.Table("channels").Where("id = ?", 1).Updates(map[string]any{"setting": updated, "name": "renamed"}).Error)
 			require.NoError(t, db.Table("channels").Where("id = ?", 2).Delete(&row{}).Error)
 			rows, err = GetChannelConcurrencyConfigs(context.Background())
 			require.NoError(t, err)
-			assert.Equal(t, []ChannelConcurrencyConfig{{ID: 1, Setting: &updated}}, rows)
+			assert.Equal(t, []ChannelConcurrencyConfig{{ID: 1, Name: "renamed", Setting: &updated}}, rows)
 		})
 	}
 }

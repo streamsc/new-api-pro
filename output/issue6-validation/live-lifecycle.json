@@ -1,0 +1,141 @@
+[
+  {
+    "scenario": "rename without counter reset",
+    "unique_names": [
+      {
+        "metric": {
+          "__name__": "new_api:channel_info:unique",
+          "channel_id": "2",
+          "channel_name": "Legacy stream",
+          "concurrency_domain": "shared-redis",
+          "deployment": "issue6-local"
+        },
+        "value": [
+          1793896180.451,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "new_api:channel_info:unique",
+          "channel_id": "3",
+          "channel_name": "Shared demo",
+          "concurrency_domain": "shared-redis",
+          "deployment": "issue6-local"
+        },
+        "value": [
+          1793896180.451,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "new_api:channel_info:unique",
+          "channel_id": "1",
+          "channel_name": "Renamed local",
+          "concurrency_domain": "shared-redis",
+          "deployment": "issue6-local"
+        },
+        "value": [
+          1793896180.451,
+          "1"
+        ]
+      }
+    ]
+  },
+  {
+    "scenario": "user RPM rejection on both nodes",
+    "channel_rejection_unchanged": true
+  },
+  {
+    "scenario": "Redis read failure",
+    "gauges_omitted": true,
+    "info_and_local_counters_retained": true,
+    "prometheus_status": []
+  },
+  {
+    "scenario": "actual gateway process restart",
+    "new_counter": 1,
+    "prometheus_resets": [
+      {
+        "metric": {
+          "concurrency_domain": "shared-redis",
+          "deployment": "issue6-local",
+          "instance": "gateway-b:3000",
+          "job": "new-api",
+          "model": "secondary-demo",
+          "result": "success"
+        },
+        "value": [
+          1793896205.69,
+          "1"
+        ]
+      }
+    ]
+  },
+  {
+    "scenario": "histogram observations exactly match request counters",
+    "differences": [
+      {
+        "metric": {
+          "model": "gpt-4o-mini",
+          "result": "failure"
+        },
+        "value": [
+          1793896205.708,
+          "0"
+        ]
+      },
+      {
+        "metric": {
+          "model": "gpt-4o-mini",
+          "result": "success"
+        },
+        "value": [
+          1793896205.708,
+          "0"
+        ]
+      },
+      {
+        "metric": {
+          "model": "legacy-demo",
+          "result": "unknown"
+        },
+        "value": [
+          1793896205.708,
+          "0"
+        ]
+      },
+      {
+        "metric": {
+          "model": "secondary-demo",
+          "result": "success"
+        },
+        "value": [
+          1793896205.708,
+          "0"
+        ]
+      },
+      {
+        "metric": {
+          "model": "gpt-4o-mini",
+          "result": "cancelled"
+        },
+        "value": [
+          1793896205.708,
+          "0"
+        ]
+      },
+      {
+        "metric": {
+          "model": "secondary-demo",
+          "result": "failure"
+        },
+        "value": [
+          1793896205.708,
+          "0"
+        ]
+      }
+    ]
+  }
+]

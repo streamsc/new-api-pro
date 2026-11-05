@@ -15,20 +15,27 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/concurrencymetrics"
+	"github.com/QuantumNous/new-api/pkg/relaymetrics"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/common/expfmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestMetricsHTTPCurrentSnapshotAndKeepAlive(t *testing.T) {
+	previousMetrics := relaymetrics.Default
+	relaymetrics.Default = relaymetrics.New()
+	t.Cleanup(func() { relaymetrics.Default = previousMetrics })
+	relaymetrics.Default.Reject("rename-model", 801)
+	relaymetrics.Default.Observe("rename-model", context.Background(), nil, nil, false, time.Second)
 	db := setupModelListControllerTestDB(t)
 	previous := common.RedisEnabled
 	common.RedisEnabled = false
 	defer func() { common.RedisEnabled = previous }()
 	good, broken := `{"max_concurrency":10}`, "{broken"
-	require.NoError(t, db.Create(&model.Channel{Id: 801, Status: 2, Setting: &good}).Error)
-	require.NoError(t, db.Create(&model.Channel{Id: 802, Setting: &broken}).Error)
+	require.NoError(t, db.Create(&model.Channel{Id: 801, Name: "same", Status: 2, Setting: &good}).Error)
+	require.NoError(t, db.Create(&model.Channel{Id: 802, Name: "same", Setting: &broken}).Error)
 	router := gin.New()
 	router.GET("/metrics", NewConcurrencyMetricsHandler())
 	router.GET("/next", func(c *gin.Context) { c.String(200, "next") })
@@ -41,11 +48,18 @@ func TestMetricsHTTPCurrentSnapshotAndKeepAlive(t *testing.T) {
 	require.NoError(t, err)
 	response.Body.Close()
 	require.Equal(t, 200, response.StatusCode)
+	var parser expfmt.TextParser
+	families, err := parser.TextToMetricFamilies(strings.NewReader(string(body)))
+	require.NoError(t, err)
+	require.Contains(t, families, "new_api_relay_request_duration_seconds")
+	assert.Equal(t, 1.0, families["new_api_relay_request_duration_seconds"].Metric[0].Histogram.GetSampleSum())
 	assert.Contains(t, response.Header.Get("Content-Type"), "text/plain")
 	assert.Contains(t, string(body), `new_api_channel_concurrency_limit{channel_id="801",scope="process"} 10`)
 	assert.Contains(t, string(body), `new_api_channel_concurrency_in_flight{channel_id="802",scope="process"} 0`)
 	assert.Contains(t, string(body), `new_api_concurrency_scrape_success{component="channel_config",scope="process"} 0`)
 	assert.NotContains(t, string(body), broken)
+	assert.Contains(t, string(body), `new_api_channel_info{channel_id="801",channel_name="same"} 1`)
+	assert.Contains(t, string(body), `new_api_channel_info{channel_id="802",channel_name="same"} 1`)
 	var saved model.Channel
 	require.NoError(t, db.First(&saved, 802).Error)
 	require.NotNil(t, saved.Setting)
@@ -66,7 +80,7 @@ func TestMetricsHTTPCurrentSnapshotAndKeepAlive(t *testing.T) {
 	second, _, err := service.AcquireChannelConcurrency(context.Background(), 801, 10, "metrics-second")
 	require.NoError(t, err)
 	defer second.Release()
-	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", 801).Update("setting", `{"max_concurrency":1}`).Error)
+	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", 801).Updates(map[string]any{"setting": `{"max_concurrency":1}`, "name": "renamed"}).Error)
 	response, err = client.Get(server.URL + "/metrics")
 	require.NoError(t, err)
 	body, err = io.ReadAll(response.Body)
@@ -74,6 +88,10 @@ func TestMetricsHTTPCurrentSnapshotAndKeepAlive(t *testing.T) {
 	response.Body.Close()
 	assert.Contains(t, string(body), `new_api_channel_concurrency_limit{channel_id="801",scope="process"} 1`)
 	assert.Contains(t, string(body), `new_api_channel_concurrency_in_flight{channel_id="801",scope="process"} 2`)
+	assert.Contains(t, string(body), `new_api_channel_info{channel_id="801",channel_name="renamed"} 1`)
+	assert.Contains(t, string(body), `new_api_channel_concurrency_rejected_total{channel_id="801",model="rename-model"} 1`)
+	assert.Contains(t, string(body), `new_api_relay_requests_total{model="rename-model",result="unknown"} 1`)
+	assert.NotContains(t, string(body), `channel_id="801",channel_name="same"`)
 	assert.NoError(t, first.Context().Err())
 	assert.NoError(t, second.Context().Err())
 	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", 801).Update("setting", "{}").Error)
@@ -234,4 +252,5 @@ func TestMetricsHTTPDependencyFailure(t *testing.T) {
 	assert.Equal(t, 200, resp.StatusCode)
 	assert.Contains(t, string(body), `component="concurrency",scope="redis"} 0`)
 	assert.False(t, strings.Contains(string(body), "new_api_channel_concurrency_in_flight"))
+	assert.NotContains(t, string(body), "new_api_channel_info{")
 }

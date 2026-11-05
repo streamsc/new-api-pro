@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
+	"github.com/QuantumNous/new-api/pkg/relaymetrics"
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -70,6 +71,21 @@ func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewA
 }
 
 func Relay(c *gin.Context, relayFormat types.RelayFormat) {
+	started := time.Now()
+	incomingContext := c.Request.Context()
+	metricsModel := c.GetString(relaymetrics.ContextModelKey)
+	var relayInfo *relaycommon.RelayInfo
+	var newAPIError *types.NewAPIError
+	if relayFormat != types.RelayFormatOpenAIRealtime {
+		defer func() {
+			recovered := recover()
+			relaymetrics.Default.Observe(metricsModel, incomingContext, relayInfo, newAPIError, recovered != nil, time.Since(started))
+			if recovered != nil {
+				panic(recovered)
+			}
+		}()
+	}
+
 	model.CaptureUsageUserAgent(c)
 
 	requestId := c.GetString(common.RequestIdKey)
@@ -77,7 +93,6 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	//originalModel := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
 
 	var (
-		newAPIError       *types.NewAPIError
 		ws                *websocket.Conn
 		activeConcurrency *service.ChannelConcurrencyLease
 		suppressErrorBody bool
@@ -142,7 +157,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
-	relayInfo, err := relaycommon.GenRelayInfo(c, relayFormat, request, ws)
+	relayInfo, err = relaycommon.GenRelayInfo(c, relayFormat, request, ws)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
@@ -233,7 +248,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 				member,
 			)
 			if err != nil {
-				if !errors.Is(err, service.ErrChannelConcurrencyLimit) {
+				if errors.Is(err, service.ErrChannelConcurrencyLimit) {
+					relaymetrics.Default.Reject(metricsModel, channel.Id)
+				} else {
 					logger.LogError(c, fmt.Sprintf("channel concurrency acquisition failed: channel_id=%d error=%v", channel.Id, err))
 				}
 				newAPIError = channelConcurrencyError(err)

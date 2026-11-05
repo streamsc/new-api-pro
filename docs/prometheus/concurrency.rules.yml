@@ -26,3 +26,13 @@ groups:
           unless on(deployment, concurrency_domain, channel_id) new_api:redis_concurrency_config:inconsistent
       - record: new_api:process_concurrency_utilization:ratio
         expr: new_api:channel_concurrency_in_flight:valid{scope="process"} / new_api:channel_concurrency_limit:valid{scope="process"}
+      - record: new_api:channel_info:deduplicated
+        expr: max by(deployment, concurrency_domain, channel_id, channel_name) (new_api_channel_info and on(job, instance, deployment, concurrency_domain) (up == 1))
+      - record: new_api:channel_info:conflicting
+        expr: count by(deployment, concurrency_domain, channel_id) (new_api:channel_info:deduplicated) > 1
+      - record: new_api:channel_info:unique
+        expr: new_api:channel_info:deduplicated unless on(deployment, concurrency_domain, channel_id) new_api:channel_info:conflicting
+      - record: new_api:relay_requests:rate5m
+        expr: sum by(deployment, concurrency_domain, model, result) (rate(new_api_relay_requests_total[5m]))
+      - record: new_api:channel_concurrency_rejected:rate5m
+        expr: sum by(deployment, concurrency_domain, model, channel_id) (rate(new_api_channel_concurrency_rejected_total[5m]))

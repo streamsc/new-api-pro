@@ -1,0 +1,181 @@
+{
+  "environment": "Apple M4 Docker Desktop ARM64, shared isolated SQLite + Redis, Python local upstream; 300 requests at 50 requests/s, 4 client workers x 3 runs per mode; no production traffic",
+  "baseline": "5c8c23c36901b1d2f9ec6a0171e76370242b8ecb",
+  "scrape_interval_seconds": 0.1,
+  "scope": "real full Relay HTTP requests; recording-enabled gateway includes model normalization; existing user metrics present in all modes",
+  "results": [
+    {
+      "round": 1,
+      "mode": "baseline",
+      "duration_s": 5.989,
+      "requests_per_second": 50.1,
+      "drain_ms": 7.078,
+      "relay": {
+        "count": 300,
+        "mean_ms": 9.121,
+        "p50_ms": 6.445,
+        "p95_ms": 18.235,
+        "p99_ms": 101.396
+      },
+      "scrapes": null
+    },
+    {
+      "round": 2,
+      "mode": "record",
+      "duration_s": 5.99,
+      "requests_per_second": 50.09,
+      "drain_ms": 6.009,
+      "relay": {
+        "count": 300,
+        "mean_ms": 7.255,
+        "p50_ms": 7.399,
+        "p95_ms": 9.503,
+        "p99_ms": 16.639
+      },
+      "scrapes": null
+    },
+    {
+      "round": 3,
+      "mode": "record_scrape",
+      "duration_s": 5.987,
+      "requests_per_second": 50.1,
+      "drain_ms": 3.555,
+      "relay": {
+        "count": 300,
+        "mean_ms": 8.017,
+        "p50_ms": 6.99,
+        "p95_ms": 14.115,
+        "p99_ms": 50.238
+      },
+      "scrapes": {
+        "count": 55,
+        "mean_ms": 5.988,
+        "p50_ms": 4.307,
+        "p95_ms": 11.476,
+        "p99_ms": 15.263
+      }
+    },
+    {
+      "round": 4,
+      "mode": "record",
+      "duration_s": 5.992,
+      "requests_per_second": 50.07,
+      "drain_ms": 4.908,
+      "relay": {
+        "count": 300,
+        "mean_ms": 9.309,
+        "p50_ms": 6.287,
+        "p95_ms": 12.547,
+        "p99_ms": 115.97
+      },
+      "scrapes": null
+    },
+    {
+      "round": 5,
+      "mode": "baseline",
+      "duration_s": 6.027,
+      "requests_per_second": 49.78,
+      "drain_ms": 114.973,
+      "relay": {
+        "count": 300,
+        "mean_ms": 10.709,
+        "p50_ms": 6.575,
+        "p95_ms": 14.39,
+        "p99_ms": 225.892
+      },
+      "scrapes": null
+    },
+    {
+      "round": 6,
+      "mode": "record_scrape",
+      "duration_s": 5.988,
+      "requests_per_second": 50.1,
+      "drain_ms": 3.27,
+      "relay": {
+        "count": 300,
+        "mean_ms": 9.015,
+        "p50_ms": 6.124,
+        "p95_ms": 14.103,
+        "p99_ms": 88.341
+      },
+      "scrapes": {
+        "count": 54,
+        "mean_ms": 8.342,
+        "p50_ms": 4.81,
+        "p95_ms": 13.46,
+        "p99_ms": 21.638
+      }
+    },
+    {
+      "round": 7,
+      "mode": "record_scrape",
+      "duration_s": 5.99,
+      "requests_per_second": 50.08,
+      "drain_ms": 3.129,
+      "relay": {
+        "count": 300,
+        "mean_ms": 7.713,
+        "p50_ms": 5.517,
+        "p95_ms": 16.49,
+        "p99_ms": 60.794
+      },
+      "scrapes": {
+        "count": 55,
+        "mean_ms": 6.591,
+        "p50_ms": 4.725,
+        "p95_ms": 13.254,
+        "p99_ms": 21.631
+      }
+    },
+    {
+      "round": 8,
+      "mode": "record",
+      "duration_s": 5.992,
+      "requests_per_second": 50.07,
+      "drain_ms": 4.948,
+      "relay": {
+        "count": 300,
+        "mean_ms": 7.054,
+        "p50_ms": 7.016,
+        "p95_ms": 10.621,
+        "p99_ms": 15.485
+      },
+      "scrapes": null
+    },
+    {
+      "round": 9,
+      "mode": "baseline",
+      "duration_s": 5.993,
+      "requests_per_second": 50.06,
+      "drain_ms": 5.247,
+      "relay": {
+        "count": 300,
+        "mean_ms": 6.944,
+        "p50_ms": 7.207,
+        "p95_ms": 9.374,
+        "p99_ms": 11.605
+      },
+      "scrapes": null
+    }
+  ],
+  "median_of_run_statistics": {
+    "baseline": {
+      "mean_ms": 9.121,
+      "p50_ms": 6.575,
+      "p95_ms": 14.39,
+      "p99_ms": 101.396
+    },
+    "record": {
+      "mean_ms": 7.255,
+      "p50_ms": 7.016,
+      "p95_ms": 10.621,
+      "p99_ms": 16.639
+    },
+    "record_scrape": {
+      "mean_ms": 8.017,
+      "p50_ms": 6.124,
+      "p95_ms": 14.115,
+      "p99_ms": 60.794
+    }
+  }
+}
