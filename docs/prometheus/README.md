@@ -1,6 +1,6 @@
 # Channel concurrency metrics
 
-`GET /metrics` exposes the current gateway concurrency reservations. It does not
+`GET :9080/metrics` (independent monitoring listener) exposes the current gateway concurrency reservations. It does not
 measure upstream model queues, GPU activity, or traffic that bypasses the existing
 channel concurrency service (including Realtime and asynchronous tasks).
 
@@ -87,25 +87,30 @@ validate them. Sharing a Redis count domain while using unrelated channel
 directories is a deployment error. HA Prometheus servers also require normal
 replica deduplication in any shared downstream metrics backend.
 
-Only a private network should reach the application's backend port. The supplied
-project Compose file publishes `3000:3000`; blocking an HTTP proxy path alone does
-not prevent bypass through that port. For containers sharing a private Docker
-network, omit the application's host port publication and use container DNS from
-Prometheus. If a host-local reverse proxy needs it, bind to `127.0.0.1:3000:3000`
-and arrange a separate private route for scraping. Do not expose metrics through
-the normal business proxy. Example Nginx rules:
+The monitoring listener defaults to port **9080**, configurable with
+`METRICS_PORT`. The business listener continues to use `PORT` (default 3000).
+The business port returns 404 for `/metrics`, `/metrics?x=1`, and `/metrics/`,
+including embedded-frontend and `FRONTEND_BASE_URL` modes. There is no fallback
+or redirect to the monitoring port. The monitoring port serves only `GET /metrics`;
+API, frontend, pprof and other paths are not registered there.
 
-```nginx
-location = /metrics { return 404; }
-location ^~ /metrics/ { return 404; }
-location / { proxy_pass http://private_new_api; }
-```
+Only a private network should reach port 9080. Containers on the same private
+Docker network can scrape `new-api:9080` without publishing that port to the host.
+Do not add a public `9080:9080` mapping or proxy monitoring through the business
+entry point. For a host-based installation, restrict 9080 with the host firewall.
+The monitoring listener itself does not implement authentication.
 
-Nginx matches locations without query parameters, so `/metrics?x=1` is blocked.
-Verify private `/metrics` returns exposition text, and public `/metrics`,
-`/metrics?x=1`, `/metrics/` and direct backend-port access are blocked. Test both
-the embedded frontend and `FRONTEND_BASE_URL` mode. This document does not change
-or deploy existing production configuration.
+Both listeners must bind successfully before serving. A bind failure fails startup
+and closes any listener already opened. SIGINT/SIGTERM stops both listeners and
+drains active requests within `SHUTDOWN_TIMEOUT_SECONDS`; expired shutdowns force
+connections closed. Metrics retain their existing two-request concurrency cap,
+five-second collection deadline and eight-second write deadline. The monitoring
+server also applies a five-second header-read timeout and 30-second idle timeout.
+
+When upgrading one gateway at a time, update only that gateway's scrape target
+from its business port to 9080. Older gateways remain on their existing target
+until upgraded. Verify business metrics paths return 404, the private monitoring
+target is up, and monitoring is inaccessible through the public entry point.
 
 ## Queries
 

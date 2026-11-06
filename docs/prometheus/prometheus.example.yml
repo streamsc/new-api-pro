@@ -8,7 +8,7 @@ scrape_configs:
   - job_name: new-api
     metrics_path: /metrics
     static_configs:
-      - targets: ["new-api-1:3000", "new-api-2:3000"]
+      - targets: ["new-api-1:9080", "new-api-2:9080"]
         labels:
           deployment: gateway-production
           concurrency_domain: shared-gateway-redis

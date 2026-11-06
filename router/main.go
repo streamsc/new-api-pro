@@ -14,7 +14,11 @@ import (
 )
 
 func SetRouter(router *gin.Engine, assets WebAssets) {
-	router.GET("/metrics", controller.NewConcurrencyMetricsHandler())
+	// Explicit tombstones avoid Gin's trailing-slash redirects and prevent
+	// plugin or frontend fallbacks from serving the old monitoring path.
+	notFound := func(c *gin.Context) { c.AbortWithStatus(http.StatusNotFound) }
+	router.Any("/metrics", notFound)
+	router.Any("/metrics/*path", notFound)
 	SetApiRouter(router)
 	SetDashboardRouter(router)
 	SetRelayRouter(router)
@@ -40,4 +44,14 @@ func SetRouter(router *gin.Engine, assets WebAssets) {
 			},
 		)
 	}
+}
+
+// NewMetricsRouter serves only the private monitoring endpoint, independently
+// of business authentication, rate limits, plugins and frontend redirects.
+func NewMetricsRouter() *gin.Engine {
+	router := gin.New()
+	router.Use(gin.Recovery())
+	router.RedirectTrailingSlash = false
+	router.GET("/metrics", controller.NewConcurrencyMetricsHandler())
+	return router
 }

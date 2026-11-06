@@ -7,11 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -211,38 +213,74 @@ func main() {
 		port = strconv.Itoa(*common.Port)
 	}
 
-	srv := &http.Server{
-		Addr:    ":" + port,
-		Handler: server,
+	metricsPort := common.GetEnvOrDefaultString("METRICS_PORT", "9080")
+	servers := []*http.Server{
+		{Addr: ":" + port, Handler: server},
+		{
+			Addr:              ":" + metricsPort,
+			Handler:           router.NewMetricsRouter(),
+			ReadHeaderTimeout: 5 * time.Second,
+			IdleTimeout:       30 * time.Second,
+		},
 	}
-
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			common.FatalLog(common.LogText("failed to start HTTP server: %s", err.Error()))
+	// Bind both listeners before serving: a missing monitoring endpoint is a
+	// startup error, not a silently degraded business-only process.
+	listeners := make([]net.Listener, 0, len(servers))
+	for _, srv := range servers {
+		listener, err := net.Listen("tcp", srv.Addr)
+		if err != nil {
+			for _, opened := range listeners {
+				_ = opened.Close()
+			}
+			common.FatalLog(common.LogText("failed to bind HTTP listener %s: %v", srv.Addr, err))
+			return
 		}
-	}()
-
-	time.Sleep(100 * time.Millisecond)
-
-	common.LogStartupSuccess(startTime, port)
-
+		listeners = append(listeners, listener)
+	}
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	sig := <-quit
-	common.SysLog(common.LogText("received signal: %v, shutting down...", sig))
+	defer signal.Stop(quit)
+	serveErrors := make(chan error, len(servers))
+	for i, srv := range servers {
+		go func() {
+			if err := srv.Serve(listeners[i]); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				serveErrors <- fmt.Errorf("HTTP listener %s: %w", srv.Addr, err)
+			}
+		}()
+	}
+	common.LogStartupSuccess(startTime, port)
+	common.SysLog(common.LogText("metrics listener started on port %s", metricsPort))
+	var serveError error
+	select {
+	case sig := <-quit:
+		common.SysLog(common.LogText("received signal: %v, shutting down...", sig))
+	case serveError = <-serveErrors:
+		common.SysError(serveError.Error())
+	}
 
-	// SSE streams may run for minutes; give them time to finish before forced exit
+	// Drain both listeners concurrently so a long business request does not
+	// leave monitoring accepting new scrapes during shutdown.
 	shutdownTimeout := time.Duration(common.GetEnvOrDefault("SHUTDOWN_TIMEOUT_SECONDS", 120)) * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
-	if err := srv.Shutdown(ctx); err != nil {
-		common.SysError(common.LogText("server forced to shutdown: %v", err))
+	var shutdown sync.WaitGroup
+	for _, srv := range servers {
+		shutdown.Go(func() {
+			if err := srv.Shutdown(ctx); err != nil {
+				common.SysError(common.LogText("server forced to shutdown: %v", err))
+				_ = srv.Close()
+			}
+		})
 	}
+	shutdown.Wait()
 	// 内存中的看板数据保存入库，避免重启丢失未落库数据 (issue #5679)
 	if common.DataExportEnabled {
 		model.SaveQuotaDataCache()
 	}
 	common.SysLog(common.LogText("server exited"))
+	if serveError != nil {
+		common.FatalLog(serveError.Error())
+	}
 }
 
 func InjectUmamiAnalytics() {

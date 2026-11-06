@@ -458,3 +458,26 @@ Realtime、Responses WebSocket、异步/被插件接管的请求，以及 Relay 
 后续同步上游时，应重点检查 Relay 最外层结束处理顺序、原始请求 context 的捕获、唯一槽位拒绝分支、
 选中渠道的模型归并及 StreamStatus 语义，并重跑集成、竞态、规则和真实客户端关闭连接测试。
 不要恢复租约丢失取消行为，也不要让 relaykit 依赖宿主 Prometheus 注册表。
+
+## 独立监控端口追加验收（2026-11-06）
+
+在 pro.5 指标实现之上，将采集器迁移到独立监听器，默认 `9080`，支持
+`METRICS_PORT` 配置。业务端口不再提供指标，无兼容转发。两个监听器先绑定后启动，
+任一绑定失败即启动失败；退出时同时停止接收请求并等待在途请求完成。
+
+- `make test`：根模块、relaykit、tokenkit 全量测试通过。
+- `go test -race ./router ./controller`、`go vet ./...`、`go build ./...` 通过。
+- 路由测试覆盖内嵌前端及 `FRONTEND_BASE_URL`：业务端口 GET/POST/HEAD 的
+  `/metrics`、`/metrics?x=1`、`/metrics/`、子路径均返回 404，无重定向。
+- 监控端口 GET `/metrics` 及带查询参数形式可被官方 Prometheus 解析器解析；
+  首页、业务 API、Relay、pprof、`/metrics/` 和 POST `/metrics` 均返回 404。
+- 本地两台实际网关使用默认 9080，Prometheus 直接抓取容器私网地址。
+  18 个真实 Relay 请求仍为成功 9、失败 5、取消 2、unknown 2；渠道拒绝恰好 1 次，
+  拒绝无上游调用，共享 Gauge 两副本原始值各 1、去重为 1。
+- 实际 SIGTERM 验证：两个监听器停止接收新请求，已在途的 8 秒同步请求成功完成，
+  进程退出码为 0。将监控端口配置为同一业务端口 3000，进程因绑定冲突非零退出。
+- 本次未改数据库模型、迁移、查询或计费逻辑；此前真实三数据库验收记录保留。
+
+本地测试日志及结构化结果位于 `output/metrics-port-9080/`。生产 rollout 仅针对
+`new-api-2`，需同步将该实例的 Prometheus 目标更新为 `new-api-2:9080`；
+尚未升级的 `new-api` 继续使用原有抓取地址。

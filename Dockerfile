@@ -47,6 +47,6 @@ COPY --from=runtime / /
 
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-EXPOSE 3000
+EXPOSE 3000 9080
 WORKDIR /data
 ENTRYPOINT ["/new-api"]
