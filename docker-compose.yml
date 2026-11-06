@@ -20,6 +20,7 @@ services:
     container_name: new-api
     restart: always
     command: --log-dir /app/logs
+    # Monitoring listens on 9080 inside the private network; do not publish it.
     ports:
       - "3000:3000"
     volumes:

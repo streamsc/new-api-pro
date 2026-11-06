@@ -1,4 +1,6 @@
 {
+  "failed to bind HTTP listener %s: %v": "绑定 HTTP 监听地址 %s 失败：%v",
+  "metrics listener started on port %s": "监控监听器已启动，端口 %s",
   "%d quota points": "%d 点额度",
   "%s after refresh: %s": "%s（刷新凭证后重试）: %s",
   "%s failed: %s": "%s 构建失败，%s",
