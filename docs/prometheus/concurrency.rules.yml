@@ -36,3 +36,45 @@ groups:
         expr: sum by(deployment, concurrency_domain, model, result) (rate(new_api_relay_requests_total[5m]))
       - record: new_api:channel_concurrency_rejected:rate5m
         expr: sum by(deployment, concurrency_domain, model, channel_id) (rate(new_api_channel_concurrency_rejected_total[5m]))
+
+  # Shared database snapshots: preserve target identity; never sum replicas.
+  - name: new-api-wallet
+    interval: 30s
+    rules:
+      - record: new_api:wallet_snapshot:healthy
+        expr: |
+          (new_api_wallet_snapshot_success{job="new-api"} == 1)
+          and on(job, instance, deployment) (up{job="new-api"} == 1)
+          and on(job, instance, deployment) (new_api_wallet_snapshot_timestamp_seconds > 0)
+          and on(job, instance, deployment) (time() - new_api_wallet_snapshot_timestamp_seconds >= 0)
+          and on(job, instance, deployment) (time() - new_api_wallet_snapshot_timestamp_seconds < 180)
+      - record: new_api:user_wallet_balance_quota:valid
+        expr: |
+          new_api_user_wallet_balance_quota{job="new-api"} and on(job, instance, deployment) (new_api:wallet_snapshot:healthy == 1)
+      - record: new_api:user_info:wallet_valid
+        expr: |
+          new_api_user_info{job="new-api"} and on(job, instance, deployment) (new_api:wallet_snapshot:healthy == 1)
+      - record: new_api:user_net_quota:5m
+        expr: |
+          (new_api_user_used_quota{job="new-api"} - new_api_user_used_quota{job="new-api"} offset 5m)
+          and on(job, instance, deployment) (new_api:wallet_snapshot:healthy == 1)
+          and on(job, instance, deployment) (new_api:wallet_snapshot:healthy offset 5m == 1)
+      - record: new_api:user_net_quota:15m
+        expr: |
+          (new_api_user_used_quota{job="new-api"} - new_api_user_used_quota{job="new-api"} offset 15m)
+          and on(job, instance, deployment) (new_api:wallet_snapshot:healthy == 1)
+          and on(job, instance, deployment) (new_api:wallet_snapshot:healthy offset 15m == 1)
+      - record: new_api:user_net_quota:7d
+        expr: |
+          (new_api_user_used_quota{job="new-api"} - new_api_user_used_quota{job="new-api"} offset 7d)
+          and on(job, instance, deployment) (new_api:wallet_snapshot:healthy == 1)
+          and on(job, instance, deployment) (new_api:wallet_snapshot:healthy offset 7d == 1)
+      - record: new_api:user_net_quota:daily7d
+        expr: |
+          new_api:user_net_quota:7d / 7
+      - record: new_api:user_wallet:days7d
+        expr: |
+          (new_api:user_wallet_balance_quota:valid > 0) / (new_api:user_net_quota:daily7d > 0)
+      - record: new_api:user_wallet:seconds15m
+        expr: |
+          (new_api:user_wallet_balance_quota:valid > 0) / ((new_api:user_net_quota:15m > 0) / 900)

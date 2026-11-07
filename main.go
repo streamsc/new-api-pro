@@ -240,6 +240,9 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(quit)
+	walletCtx, stopWallet := context.WithCancel(context.Background())
+	var walletWorker sync.WaitGroup
+	walletWorker.Go(func() { service.DefaultWalletMetrics.Run(walletCtx) })
 	serveErrors := make(chan error, len(servers))
 	for i, srv := range servers {
 		go func() {
@@ -260,6 +263,7 @@ func main() {
 
 	// Drain both listeners concurrently so a long business request does not
 	// leave monitoring accepting new scrapes during shutdown.
+	stopWallet()
 	shutdownTimeout := time.Duration(common.GetEnvOrDefault("SHUTDOWN_TIMEOUT_SECONDS", 120)) * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
@@ -273,6 +277,7 @@ func main() {
 		})
 	}
 	shutdown.Wait()
+	walletWorker.Wait()
 	// 内存中的看板数据保存入库，避免重启丢失未落库数据 (issue #5679)
 	if common.DataExportEnabled {
 		model.SaveQuotaDataCache()

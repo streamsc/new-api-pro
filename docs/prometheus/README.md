@@ -4,6 +4,11 @@
 measure upstream model queues, GPU activity, or traffic that bypasses the existing
 channel concurrency service (including Realtime and asynchronous tasks).
 
+The same endpoint also exposes [user resources and wallet snapshots](user-resources.md#wallet-and-accumulated-usage-snapshots).
+Wallet data is refreshed in the background every 60 seconds and has its own
+success/freshness checks; unlike process-local Counters, it must not be summed
+across replicas. The wallet recording rules are included in `concurrency.rules.yml`.
+
 ## Metrics
 
 The four concurrency families below are Gauges. No credentials are required.
