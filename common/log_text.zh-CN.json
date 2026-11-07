@@ -1,4 +1,5 @@
 {
+  "wallet snapshot query failed: %s": "钱包快照查询失败：%s",
   "failed to bind HTTP listener %s: %v": "绑定 HTTP 监听地址 %s 失败：%v",
   "metrics listener started on port %s": "监控监听器已启动，端口 %s",
   "%d quota points": "%d 点额度",

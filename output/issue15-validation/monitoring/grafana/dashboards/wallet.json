@@ -1,0 +1,811 @@
+{
+  "uid": "issue15-wallet",
+  "title": "用户钱包与消费 · 预生产验收",
+  "schemaVersion": 41,
+  "version": 1,
+  "timezone": "Asia/Shanghai",
+  "refresh": "30s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "tags": [
+    "issue15",
+    "validation"
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "title": "采集状态",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "wallet-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 2,
+          "noValue": "暂无有效数据",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "custom": {
+            "spanNulls": false
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "采集成功",
+                  "color": "green"
+                },
+                "0": {
+                  "text": "采集失败 / 尚未初始化",
+                  "color": "red"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "new_api_wallet_snapshot_success{job=\"new-api\",deployment=\"issue15-validation\",instance=\"host.docker.internal:33416\"}",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "legendFormat": "采集状态",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "wallet-prometheus"
+          }
+        }
+      ],
+      "options": {}
+    },
+    {
+      "id": 2,
+      "title": "快照年龄",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "wallet-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 2,
+          "noValue": "暂无有效数据",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time() - new_api_wallet_snapshot_timestamp_seconds{job=\"new-api\",deployment=\"issue15-validation\",instance=\"host.docker.internal:33416\"}",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "legendFormat": "年龄",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "wallet-prometheus"
+          }
+        }
+      ],
+      "options": {}
+    },
+    {
+      "id": 3,
+      "title": "最近成功更新",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "wallet-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 8,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dateTimeAsIso",
+          "decimals": 2,
+          "noValue": "暂无有效数据",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "new_api_wallet_snapshot_timestamp_seconds{job=\"new-api\",deployment=\"issue15-validation\",instance=\"host.docker.internal:33416\"} * 1000",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "legendFormat": "更新时间",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "wallet-prometheus"
+          }
+        }
+      ],
+      "options": {}
+    },
+    {
+      "id": 4,
+      "title": "七天历史状态",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "wallet-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 8,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 2,
+          "noValue": "暂无有效数据",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "custom": {
+            "spanNulls": false
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "历史不足或端点不可用",
+                  "color": "orange"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(new_api:user_net_quota:7d{job=\"new-api\",deployment=\"issue15-validation\",instance=\"host.docker.internal:33416\",user_id=~\"$user_id\"}) or vector(0)",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "legendFormat": "历史状态",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "wallet-prometheus"
+          }
+        }
+      ],
+      "options": {}
+    },
+    {
+      "id": 5,
+      "title": "用户钱包余额",
+      "type": "table",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "wallet-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 2,
+          "noValue": "暂无有效数据",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "custom": {
+            "spanNulls": false
+          },
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "nan",
+                "result": {
+                  "text": "历史不足 / 端点不可用",
+                  "color": "orange"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "用户 ID"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "余额 (USD)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "日均消费 (USD)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "预计天数"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "d"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "余额 (USD)"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "余额已耗尽 ($0.00)",
+                        "color": "red"
+                      }
+                    }
+                  },
+                  {
+                    "type": "special",
+                    "options": {
+                      "match": "nan",
+                      "result": {
+                        "text": "采集不可用",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(new_api:user_wallet_balance_quota:valid{job=\"new-api\",deployment=\"issue15-validation\",instance=\"host.docker.internal:33416\",user_id=~\"$user_id\"} or (new_api_user_wallet_balance_quota{job=\"new-api\",deployment=\"issue15-validation\",instance=\"host.docker.internal:33416\",user_id=~\"$user_id\"} * NaN)) / 500000 * on(job,instance,deployment,user_id) group_left(username) new_api_user_info{job=\"new-api\",deployment=\"issue15-validation\",instance=\"host.docker.internal:33416\",user_id=~\"$user_id\"}",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "legendFormat": "余额",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "wallet-prometheus"
+          }
+        },
+        {
+          "refId": "B",
+          "expr": "(new_api:user_net_quota:daily7d{job=\"new-api\",deployment=\"issue15-validation\",instance=\"host.docker.internal:33416\",user_id=~\"$user_id\"}/500000) or (new_api_user_wallet_balance_quota{job=\"new-api\",deployment=\"issue15-validation\",instance=\"host.docker.internal:33416\",user_id=~\"$user_id\"} * NaN)",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "wallet-prometheus"
+          }
+        },
+        {
+          "refId": "C",
+          "expr": "new_api:user_wallet:days7d{job=\"new-api\",deployment=\"issue15-validation\",instance=\"host.docker.internal:33416\",user_id=~\"$user_id\"} or (new_api_user_wallet_balance_quota{job=\"new-api\",deployment=\"issue15-validation\",instance=\"host.docker.internal:33416\",user_id=~\"$user_id\"} * NaN)",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "wallet-prometheus"
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "余额 (USD)",
+            "desc": false
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "user_id",
+            "mode": "outerTabular"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^user_id$",
+            "renamePattern": "用户 ID"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^username$",
+            "renamePattern": "用户名"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^Value #A$",
+            "renamePattern": "余额 (USD)"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^Value #B$",
+            "renamePattern": "日均消费 (USD)"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^Value #C$",
+            "renamePattern": "预计天数"
+          }
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "用户 ID",
+                "用户名",
+                "余额 (USD)",
+                "日均消费 (USD)",
+                "预计天数"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "钱包余额趋势",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "wallet-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 24,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 2,
+          "noValue": "暂无有效数据",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "new_api:user_wallet_balance_quota:valid{job=\"new-api\",deployment=\"issue15-validation\",instance=\"host.docker.internal:33416\",user_id=~\"$user_id\"}/500000",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "legendFormat": "{{user_id}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "wallet-prometheus"
+          }
+        }
+      ],
+      "options": {}
+    },
+    {
+      "id": 7,
+      "title": "最近 5 / 15 分钟净消费",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "wallet-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 2,
+          "noValue": "暂无有效数据",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "new_api:user_net_quota:5m{job=\"new-api\",deployment=\"issue15-validation\",instance=\"host.docker.internal:33416\",user_id=~\"$user_id\"}/500000",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "legendFormat": "{{user_id}} · 5m",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "wallet-prometheus"
+          }
+        },
+        {
+          "refId": "B",
+          "expr": "new_api:user_net_quota:15m{job=\"new-api\",deployment=\"issue15-validation\",instance=\"host.docker.internal:33416\",user_id=~\"$user_id\"}/500000",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "legendFormat": "{{user_id}} · 15m",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "wallet-prometheus"
+          }
+        }
+      ],
+      "options": {}
+    },
+    {
+      "id": 8,
+      "title": "近期与七天基线 · 每小时净消费",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "wallet-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 12,
+        "y": 17,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 2,
+          "noValue": "暂无有效数据",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "new_api:user_net_quota:5m{job=\"new-api\",deployment=\"issue15-validation\",instance=\"host.docker.internal:33416\",user_id=~\"$user_id\"}*12/500000",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "legendFormat": "{{user_id}} · 近期",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "wallet-prometheus"
+          }
+        },
+        {
+          "refId": "B",
+          "expr": "new_api:user_net_quota:daily7d{job=\"new-api\",deployment=\"issue15-validation\",instance=\"host.docker.internal:33416\",user_id=~\"$user_id\"}/24/500000",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "legendFormat": "{{user_id}} · 7d",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "wallet-prometheus"
+          }
+        }
+      ],
+      "options": {}
+    },
+    {
+      "id": 9,
+      "title": "七天日均净消费",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "wallet-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 8,
+        "h": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 2,
+          "noValue": "暂无有效数据",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "new_api:user_net_quota:daily7d{job=\"new-api\",deployment=\"issue15-validation\",instance=\"host.docker.internal:33416\",user_id=~\"$user_id\"}/500000",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "legendFormat": "{{user_id}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "wallet-prometheus"
+          }
+        }
+      ],
+      "options": {}
+    },
+    {
+      "id": 10,
+      "title": "预计可用天数 · 七天基线",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "wallet-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 8,
+        "y": 25,
+        "w": 8,
+        "h": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "d",
+          "decimals": 2,
+          "noValue": "暂无有效数据",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "new_api:user_wallet:days7d{job=\"new-api\",deployment=\"issue15-validation\",instance=\"host.docker.internal:33416\",user_id=~\"$user_id\"}",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "legendFormat": "{{user_id}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "wallet-prometheus"
+          }
+        }
+      ],
+      "options": {}
+    },
+    {
+      "id": 11,
+      "title": "短期余额风险 · 15 分钟速度",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "wallet-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 16,
+        "y": 25,
+        "w": 8,
+        "h": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 2,
+          "noValue": "暂无有效数据",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "new_api:user_wallet:seconds15m{job=\"new-api\",deployment=\"issue15-validation\",instance=\"host.docker.internal:33416\",user_id=~\"$user_id\"}",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "legendFormat": "{{user_id}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "wallet-prometheus"
+          }
+        }
+      ],
+      "options": {}
+    },
+    {
+      "id": 12,
+      "title": "口径与缺失状态",
+      "type": "text",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "wallet-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 24,
+        "h": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 2,
+          "noValue": "暂无有效数据",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [],
+      "options": {
+        "mode": "markdown",
+        "content": "仅使用指定采集目标；余额和消费均为共享数据库 Gauge。\n\n**历史不足或任一端点不可用时不计算预测；无数据不等于零。** 余额 ≤ 0 表示余额已耗尽。净消费 ≤ 0 时无有效速度；退款可使净消费下降。\n\n七天预测包含钱包与订阅净消费，不是精确归零日期。当前测试数据只积累了几分钟，七天预测预期为空。"
+      }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "user_id",
+        "label": "用户",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "wallet-prometheus"
+        },
+        "query": "label_values(new_api_user_info{job=\"new-api\",deployment=\"issue15-validation\",instance=\"host.docker.internal:33416\"}, user_id)",
+        "definition": "label_values(new_api_user_info{job=\"new-api\",deployment=\"issue15-validation\",instance=\"host.docker.internal:33416\"}, user_id)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  }
+}

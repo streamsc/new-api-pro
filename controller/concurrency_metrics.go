@@ -63,7 +63,7 @@ func (h *concurrencyMetricsHandler) serve(c *gin.Context) {
 		_ = response.Flush()
 		return
 	}
-	registry.MustRegister(service.UserResourcesCollector{Context: ctx}, relaymetrics.Default)
+	registry.MustRegister(service.UserResourcesCollector{Context: ctx}, relaymetrics.Default, &service.DefaultWalletMetrics)
 	promhttp.HandlerFor(registry, promhttp.HandlerOpts{
 		ErrorHandling: promhttp.HTTPErrorOnError,
 		ErrorLog:      metricsErrorLogger{ctx: c.Request.Context()},

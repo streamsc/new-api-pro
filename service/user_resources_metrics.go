@@ -83,15 +83,13 @@ return redis.call('ZRANGE',KEYS[1],0,-1)
 			return
 		}
 		var users []struct {
-			Id       int
-			Username string
+			Id int
 		}
-		if err := model.DB.WithContext(collector.Context).Model(&model.User{}).Select("id", "username").Where("id IN ?", ids[offset:min(offset+100, len(ids))]).Find(&users).Error; err != nil {
+		if err := model.DB.WithContext(collector.Context).Model(&model.User{}).Select("id").Where("id IN ?", ids[offset:min(offset+100, len(ids))]).Find(&users).Error; err != nil {
 			return
 		}
 		for _, user := range users {
 			labels := []string{scope, strconv.Itoa(user.Id)}
-			ch <- prometheus.MustNewConstMetric(prometheus.NewDesc("new_api_user_info", "Current username mapping.", []string{"scope", "user_id", "username"}, nil), prometheus.GaugeValue, 1, append(labels, user.Username)...)
 			limits := config.ForUser(user.Id)
 			for resource, limit := range map[string]setting.ResourceLimit{"concurrency": limits.Concurrency, "input_tpm": limits.InputTPM, "rpm": limits.RPM} {
 				enabled := 0.

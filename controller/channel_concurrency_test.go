@@ -20,7 +20,6 @@ import (
 	redisserver "github.com/alicebob/miniredis/v2/server"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 )
@@ -220,7 +219,7 @@ func TestUserResourcesAdmissionIndependentOfBillingAndKey(t *testing.T) {
 	require.Zero(t, usage.Concurrency)
 }
 
-func TestUserResourceMetricsRenameAndUnavailableUsage(t *testing.T) {
+func TestUserResourceMetricsUnavailableUsage(t *testing.T) {
 	user, _ := setupResponsesWSRequestTest(t)
 	previousMap := common.OptionMap
 	common.OptionMap = map[string]string{}
@@ -229,22 +228,7 @@ func TestUserResourceMetricsRenameAndUnavailableUsage(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, rejection)
 	defer release()
-	registry := prometheus.NewRegistry()
-	registry.MustRegister(service.UserResourcesCollector{Context: context.Background()})
 	require.Equal(t, 1, testutil.CollectAndCount(service.UserResourcesCollector{Context: context.Background()}, "new_api_user_inflight_requests"))
-	require.NoError(t, model.DB.Model(user).Update("username", "renamed-resource-user").Error)
-	families, err := registry.Gather()
-	require.NoError(t, err)
-	for _, family := range families {
-		if family.GetName() == "new_api_user_info" {
-			require.Len(t, family.Metric, 1)
-			for _, label := range family.Metric[0].Label {
-				if label.GetName() == "username" {
-					require.Equal(t, "renamed-resource-user", label.GetValue())
-				}
-			}
-		}
-	}
 	common.RedisEnabled = true
 	common.RDB = nil
 	require.Zero(t, testutil.CollectAndCount(service.UserResourcesCollector{Context: context.Background()}, "new_api_user_inflight_requests"))

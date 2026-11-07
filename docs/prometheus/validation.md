@@ -481,3 +481,153 @@ Realtime、Responses WebSocket、异步/被插件接管的请求，以及 Relay 
 本地测试日志及结构化结果位于 `output/metrics-port-9080/`。生产 rollout 仅针对
 `new-api-2`，需同步将该实例的 Prometheus 目标更新为 `new-api-2:9080`；
 尚未升级的 `new-api` 继续使用原有抓取地址。
+
+## Issue #15 wallet snapshots — 2026-11-07
+
+Implementation verified locally with Go 1.26.10 on darwin/arm64 (Apple M4).
+No production deployment or alert installation was performed.
+
+Commands and observed results:
+
+- `go build ./...` — passed.
+- `go test ./service ./controller ./router ./model -count=1` — all four packages passed.
+- `go test -race ./service -run TestWalletMetrics -count=1` — passed, including
+  the three-database matrix with `TEST_WALLET_MYSQL_DSN` and
+  `TEST_WALLET_POSTGRES_DSN` pointing to isolated local Docker databases.
+  SQLite **3.50.4**, MySQL **8.0.46**, PostgreSQL **16.15** were exercised.
+  MySQL used `mysql:8.0` on 127.0.0.1:33316; PostgreSQL used
+  `public.ecr.aws/docker/library/postgres:16-alpine` on 127.0.0.1:33317.
+  Both disposable databases were named `wallet_test`; test containers were
+  removed afterward. No schema change is part of this feature.
+- `go test -race ./service ./controller ./router -run 'TestWalletMetrics|TestMetricsHTTP|TestUserResourceMetrics|TestMonitoringRouter|TestBusinessRouter' -count=1`
+  initially found an unsynchronized **test** query counter. It was changed to
+  atomic access. Controller/router passed that run; the service wallet tests
+  subsequently passed under race detection, including all three databases.
+- `docker run --rm -v "$PWD/docs/prometheus:/work:ro" --entrypoint /bin/promtool mtw6hbbpueh4iz.xuanyuan.run/prom/prometheus:v3.2.1 check rules /work/concurrency.rules.yml`
+  — passed, 22 rules.
+- `docker run --rm -v "$PWD/docs/prometheus:/work:ro" -w /work --entrypoint /bin/promtool mtw6hbbpueh4iz.xuanyuan.run/prom/prometheus:v3.2.1 test rules concurrency.test.yml`
+  — passed, including existing concurrency scenarios and wallet cases.
+- `git diff --check` — passed.
+
+The SQL fixture verifies inactive/disabled/zero-balance inclusion, soft and hard
+user deletion, rename/refund updates, one query per refresh, zero wallet queries
+on repeated scrapes, and deadline cancellation while the real SQL pool is
+exhausted. Service tests cover initialization, partial-read failure, immutable
+collection while a replacement is published, five-second timeout, immediate
+startup, 60-second cadence, and cancellation of an in-flight query. The info
+metric is checked together with the existing resource collector for duplicates.
+HTTP regressions verify the new health families are registered at the existing
+endpoint. PromQL tests cover healthy endpoints across an intermediate outage,
+missing/failed historical endpoints, negative net usage, zero/negative balances,
+non-positive baseline suppression, absolute alerts without history, relative
+spikes, freshness expiry, target down and distinct replica observations.
+
+Benchmark command:
+
+```sh
+go test ./service -run '^$' -bench '^BenchmarkWalletMetrics$' -benchtime=300ms -benchmem
+```
+
+| Users | Operation | ns/op | allocated B/op | allocs/op |
+| ---: | --- | ---: | ---: | ---: |
+| 1,000 | SQLite query and snapshot publication | 614154 | 288311 | 12725 |
+| 1,000 | Registry Gather | 1182179 | 1794899 | 40012 |
+| 10,000 | SQLite query and snapshot publication | 5961077 | 3398933 | 129751 |
+| 10,000 | Registry Gather | 14796149 | 18803996 | 400264 |
+
+These measure local in-memory SQLite and the wallet collector, not production
+network/database latency, HTTP encoding, the existing resource collector, or
+resident/peak process memory. Allocated bytes are per operation, not retained
+snapshot size. The retained snapshot is O(users); concurrent scrapes can retain
+previous generations until collection finishes. The agreed timeout remains five
+seconds, with a failed oversized query retaining the preceding snapshot.
+Grafana delivery consists of reusable queries and panel/transform settings in
+`user-resources.md`; no live Grafana instance was edited or visually validated.
+
+### Live process acceptance and review — 2026-11-07
+
+Reviewed the current diff for immutable snapshot publication, SQL scope/timeout,
+worker startup/shutdown, single ownership of user info and per-target PromQL
+endpoint validation. No blocking findings; no production-code changes were
+needed during this pass.
+
+Built and ran the real application with a clean environment and an isolated
+SQLite database; business port 33415, metrics port 33416. No production database,
+relay upstream or existing preproduction container was used. Commands:
+
+```sh
+go build -o output/issue15-validation/new-api .
+python3 -u output/issue15-validation/acceptance.py > output/issue15-validation/acceptance.log 2>&1
+docker run --rm -i --entrypoint /bin/promtool mtw6hbbpueh4iz.xuanyuan.run/prom/prometheus:v3.2.1 check metrics < output/issue15-validation/01-initial.prom
+```
+
+All passed. Artifacts are in `output/issue15-validation/`: `result.json`,
+`acceptance.log`, `server.log`, the reproducible harness and five `.prom` snapshots.
+The harness requires a fresh `runtime/acceptance.db` path and refuses to overwrite
+an existing database. Test application processes exited normally on SIGTERM.
+
+Observed:
+
+- Initial snapshot included inactive, disabled and zero-balance users and excluded
+  a soft-deleted user. Gauge metadata and unique sample identities were verified.
+- Business `/metrics` and monitoring `/api/status` returned 404.
+- Twenty concurrent-pair scrapes did not refresh the wallet snapshot. SQL trace
+  contained exactly six full wallet reads across bootstrap and the acceptance run,
+  independent of the repeated HTTP scrapes.
+- Persisted quota/used_quota changes appeared on the next real 60-second tick.
+  Refund-shaped updates decreased used_quota; username changed only in info;
+  soft/hard deleted users disappeared. These were **synthetic SQL updates** to
+  verify monitoring of persisted state, not a new end-to-end billing test.
+- Renaming the isolated users table injected an actual query failure. Scrapes
+  remained HTTP 200, success became 0, and both amounts and the success timestamp
+  stayed unchanged. Restoring the table and changing a balance restored success=1
+  and published the new balance on the next tick.
+- Successful snapshot timestamps advanced by exactly 60 seconds; after one failed
+  cycle, the next successful timestamp advanced by 120 seconds. Graceful exit was 0.
+
+This acceptance covers the running exporter and database-query failure/recovery.
+Live Prometheus ingestion and Grafana panel rendering remain a separate deployment
+acceptance step; their query semantics were covered by the preceding promtool tests.
+
+### Prometheus and Grafana acceptance — 2026-11-07
+
+Started isolated Prometheus **3.2.1** (127.0.0.1:33417) and Grafana **12.3.0**
+(127.0.0.1:33418) using
+`docker compose -f output/issue15-validation/monitoring/compose.yml up -d`.
+The isolated gateway uses business port 33415 and metrics port 33416; its PID is
+stored in `output/issue15-validation/monitoring.pid`. The existing issue8 test
+containers and production services were not changed. This stack is left running
+for inspection, with no alert notification routing configured.
+
+`python3 -u output/issue15-validation/monitoring/verify.py` passed against real
+Prometheus HTTP APIs: target up, healthy recording rules, persisted spend visible,
+query failure suppressing valid values while raw values remain, and recovery.
+After accumulating real five-minute history, net usage was **1000000 quota**
+(USD 2 at the default conversion). Seven-day forecasts remained absent as expected.
+No fabricated historical samples were inserted. The script's result and log are
+in `output/issue15-validation/monitoring/result.json` and `verification.log`.
+
+Created an actual provisioned dashboard at `/d/issue15-wallet`, with user filtering,
+a sortable per-user balance/daily-net-usage/runway table, balance and short-window
+charts, baseline comparison, and snapshot health/time panels. The JSON and its
+generator are under `output/issue15-validation/monitoring/grafana/dashboards/wallet.json`
+and `monitoring/make_dashboard.py`. This is an isolated example with fixed target,
+data-source UID and 500000 quota/USD; change these for another deployment.
+
+Playwright inspected the real Grafana UI at 1600px width. Verified disabled and
+zero-balance users, explicit exhausted/history-unavailable states, one-user filtering,
+ascending balance sorting, all five table columns, and the fault interval replay.
+Fixed a Grafana empty-frame transformation error by replacing Organize fields
+with Rename by regex / Filter fields, and retaining raw user identity with
+**NaN-only display placeholders**, mapped to Collection unavailable. Raw amounts
+are never shown as current during failure. Missing forecasts display an explicit
+unavailable state, never zero. Updated the usage guide with this verified pattern.
+Final page inspection showed no table-transform errors. Screenshots:
+`output/playwright/issue15-wallet/healthy.png` and `failure.png`.
+
+To replay the observed window, open:
+`http://127.0.0.1:33418/d/issue15-wallet?from=1794023500000&to=1794024020000`.
+To stop these test containers, use:
+`docker compose -f output/issue15-validation/monitoring/compose.yml down`.
+Stop the isolated gateway by sending SIGTERM to the PID in `monitoring.pid`
+after verifying it still belongs to this test binary. Local test data is synthetic.

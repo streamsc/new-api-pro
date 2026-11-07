@@ -52,6 +52,8 @@ func TestMetricsHTTPCurrentSnapshotAndKeepAlive(t *testing.T) {
 	families, err := parser.TextToMetricFamilies(strings.NewReader(string(body)))
 	require.NoError(t, err)
 	require.Contains(t, families, "new_api_relay_request_duration_seconds")
+	require.Contains(t, families, "new_api_wallet_snapshot_success")
+	require.Contains(t, families, "new_api_wallet_snapshot_timestamp_seconds")
 	assert.Equal(t, 1.0, families["new_api_relay_request_duration_seconds"].Metric[0].Histogram.GetSampleSum())
 	assert.Contains(t, response.Header.Get("Content-Type"), "text/plain")
 	assert.Contains(t, string(body), `new_api_channel_concurrency_limit{channel_id="801",scope="process"} 10`)

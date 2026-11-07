@@ -134,7 +134,7 @@ when disabled it does not access its store or group settings.
 
 ## Metrics and lifecycle
 
-User gauges have `scope,user_id`, where scope is `memory` or `redis`.
+User resource gauges have `scope,user_id`, where scope is `memory` or `redis`.
 Limits add `resource=concurrency|input_tpm|rpm`; identity adds `username`.
 
 | Metric | Type | Meaning |
@@ -152,15 +152,17 @@ Limits add `resource=concurrency|input_tpm|rpm`; identity adds `username`.
 Counters have `user_id` and rejection `reason`; Prometheus target labels
 identify replicas. Store failures use `store_unavailable`, not a quota reason.
 Counters reset on process restart. No API-key, request-ID or model metric labels.
-Series are bounded by users seen by a process since restart; shared Redis's active
+Resource series are bounded by users seen by a process since restart; shared Redis's active
 user index additionally discovers users seen by other replicas for 30 minutes.
-Deleted users lose gauge/info samples; historical event counters remain until
+Deleted users lose resource gauge samples; historical event counters remain until
 restart. Renames change only the info label, not usage/counter identity. Expect
-roughly 12 gauge series plus up to 5 counter series per observed user per replica.
+10 resource gauge series plus up to 5 counter series per observed user per replica.
 This is intended for moderate user populations, not unbounded multi-million-user
 scrapes. Scrapes use the existing five-second budget, indexed user lookups in
 batches of 100, and per-user Redis calls; timed-out/unavailable samples are absent.
-No full user-table or Redis keyspace scan is performed. The active index is not an
+Resource scrapes perform no full user-table or Redis keyspace scan. The separate
+wallet worker reads all users every 60 seconds and owns the all-user info mapping.
+It adds three series per non-deleted user plus two health series per replica. The active index is not an
 in-flight recovery system and never gates admission.
 
 ## PromQL
@@ -223,3 +225,188 @@ introduced. During a rename, stale target samples can briefly provide two info
 mappings; use current healthy targets and account for the scrape staleness window.
 
 Validation evidence and remaining limits are recorded in `validation.md`.
+
+## Wallet and accumulated usage snapshots
+
+Every gateway queries all non-deleted users immediately after its monitoring
+listener is bound, then every 60 seconds. Queries run serially with a five-second
+context deadline. One query reads only ID, username, quota and used_quota, including
+disabled, zero-balance and inactive users. Scrapes read an immutable memory
+snapshot, never trigger this query, and never refresh user Redis balances.
+No billing, settlement, log or schema changes are involved. Batch writes can delay
+what is visible in the database; the snapshot is not an accounting ledger.
+
+| Metric | Labels | Meaning |
+| --- | --- | --- |
+| `new_api_user_wallet_balance_quota` | `user_id` | Wallet balance, Gauge |
+| `new_api_user_used_quota` | `user_id` | Accumulated wallet **and subscription** usage, Gauge |
+| `new_api_user_info` | `scope,user_id,username` | All non-deleted users, value 1 |
+| `new_api_wallet_snapshot_success` | none | Latest attempt succeeded: 1; otherwise 0 |
+| `new_api_wallet_snapshot_timestamp_seconds` | none | Last successful completion, Unix seconds; initially 0 |
+
+The wallet collector is the sole producer of `new_api_user_info`. Its historical
+`scope=memory|redis` label describes resource storage, not wallet ownership.
+Username changes are visible on the next successful snapshot without breaking
+amount series. Deleted users disappear at that point; historical samples remain
+in Prometheus. A successful empty result removes all user samples.
+
+Failed/expired queries discard even partially read rows, preserve the previous
+complete rows and success time, and publish success=0. Before first success only
+the two health metrics exist. Scrapes return one state for amounts, names and
+health. Errors are logged; no alert or notification is installed in the app.
+Port 9080 still relies on private-network/firewall isolation, not application
+authentication; do not expose wallet metrics publicly.
+
+### Units and windows
+
+All amounts use internal quota. Divide by the deployment's actual `QuotaPerUnit`
+for USD (default 500000); set a Grafana constant variable `quota_per_unit` to that
+value. Display currency conversions are separate and may change over time. Days
+and relative speed ratios do not need currency conversion. Prometheus uses
+float64; extremely large accumulated integer values above 2^53 lose unit precision.
+
+`used_quota` can decrease on refunds or administrative adjustment. **Never use
+rate/increase on it.** The supplied rules use current value minus `offset 5m`,
+`offset 15m` or `offset 7d`, not `delta` (which extrapolates). Offsets select the
+most recent sample at or before the historical evaluation time, not an exact
+transaction timestamp. Sixty-second snapshots and scrape timing make these
+minute-level observations; refunds inside a window can offset spending.
+
+Load the wallet group in `concurrency.rules.yml`. Rules retain target identity;
+normal values require `up=1`, latest query success, and snapshot age in [0,180)
+seconds. Both endpoints must be healthy for a window difference. A failure
+immediately suppresses predictions even if the retained snapshot is still young.
+A middle-of-window outage does not invalidate healthy endpoints: cumulative
+endpoint differences still represent net usage. Never fill missing intervals with
+zero. Recording rules need their own seven-day history before 7d results appear;
+retain Prometheus data for more than seven days. No pre-monitoring history is
+backfilled. Keep the supplied 30s rule interval and use a scrape interval of 30s.
+
+### Grafana panels
+
+Use one Prometheus data source. Define single-select `deployment` and `instance`
+variables from `up{job="new-api"}`; disable All and multi-value for both. Define a
+multi-select `user_id` variable from
+`new_api_user_info{job="new-api",deployment="$deployment",instance="$instance"}`,
+with All value `.*`. The **same** target selector must be used in every panel and
+alert. Queries below abbreviate it as `S`; replace `{S}` with:
+
+```promql
+{job="new-api",deployment="$deployment",instance="$instance",user_id=~"$user_id"}
+```
+
+| Panel | Query (replace `{S}`) | Configuration |
+| --- | --- | --- |
+| Wallet list A | `new_api:user_info:wallet_valid{S}` | Instant; format Table; retain user_id and username |
+| Wallet list B | `new_api:user_wallet_balance_quota:valid{S} / $quota_per_unit` | Instant; USD, 4 decimals |
+| Wallet list C | `new_api:user_net_quota:daily7d{S} / $quota_per_unit` | Instant; USD/day |
+| Wallet list D | `new_api:user_wallet:days7d{S}` | Instant; days, 1 decimal |
+| Balance history | `new_api:user_wallet_balance_quota:valid{S} / $quota_per_unit` | Time series; legend user_id; connect null values Never |
+| Net usage 5m / 15m | `new_api:user_net_quota:5m{S} / $quota_per_unit` and `new_api:user_net_quota:15m{S} / $quota_per_unit` | Signed USD; retain negative values |
+| Hourly speed comparison | `new_api:user_net_quota:5m{S} * 12 / $quota_per_unit` and `new_api:user_net_quota:daily7d{S} / 24 / $quota_per_unit` | USD/hour; distinguish recent and baseline |
+| Short-term runway | `new_api:user_wallet:seconds15m{S}` | Duration seconds; separate from 7d prediction |
+
+For the wallet list, apply **Outer join by user_id**, then Rename by regex and
+Filter fields by name to show username, user_id, balance, daily usage and days.
+These transforms also handle empty frames; Grafana 12.3 Organize fields can fail
+when an empty join leaves multiple frames. Set the user ID unit to None and apply
+currency/day units only to the corresponding columns. Sort by any numeric column
+(default days ascending). A missing projection must not drop the user's row.
+If fixed table columns are needed even without history, use a table-only NaN
+placeholder (`forecast or (raw_balance * NaN)`) and map special NaN to an explicit
+unavailable state. This is not a numeric fallback; never use it in alert rules.
+For a table that retains users during collection failure, use raw info for the
+row identity and `valid_balance or (raw_balance * NaN)` for its amount, mapping
+NaN to Collection unavailable. Do not present the retained raw balance as fresh. For diagnosis during failure, add a separate raw
+balance table with the same target filter, prominently labeled **Last snapshot —
+may be stale**; do not feed raw values to forecasts.
+
+Add health Stat panels with the target filter (without user_id): raw success,
+`time() - new_api_wallet_snapshot_timestamp_seconds`, and timestamp multiplied by
+1000 with Grafana unit Date & time. Map success 0 to “Query failed / not initialized”.
+Use `up` to distinguish endpoint failure. Preserve null as “Unavailable”, not zero.
+Use these state queries alongside the list; the order below is the display priority:
+
+1. Current `new_api:wallet_snapshot:healthy` absent: “Collection unavailable”.
+   Raw success=0 means latest query failed/not initialized; age >=180 means stale;
+   up=0 or absent means target unavailable. Check these independently.
+2. `new_api:user_wallet_balance_quota:valid{S} <= 0`: “Balance exhausted”.
+3. Healthy balance `unless` `new_api_user_used_quota{S} offset 7d`: “Missing 7d
+   endpoint — insufficient history or historical data missing”. Snapshot metrics
+   alone cannot always distinguish a new account from historical data loss.
+4. Healthy balance with a historical user sample, but no healthy target at
+   `offset 7d`: “Historical snapshot unavailable”.
+5. `new_api:user_net_quota:7d{S} <= 0`: “No valid consumption speed”; negative
+   differences additionally mean net decrease, not a proven top-up.
+
+A wallet balance divided by seven-day daily **total net** spending includes
+subscription usage. It is an accepted conservative estimate, not a wallet-only
+burn rate or a promised exhaustion date. Manual resets can distort positive
+windows too; snapshots cannot automatically detect every reset/refund.
+
+### Alert examples (operator configured)
+
+These are examples only; configure notification routing and thresholds yourself.
+Use a fixed target for alert rules, not Grafana template variables. For example,
+replace `{S}` with `{job="new-api",deployment="gateway-production",instance="new-api-1:9080"}`.
+Quota thresholds below assume the default 500000 quota/USD; adjust for deployment.
+
+```promql
+# More than USD 10 net usage in five minutes; works without seven-day history.
+new_api:user_net_quota:5m{S} > 5000000
+
+# >5x seven-day average AND >USD 1/5m. Suggested for: 3m.
+(new_api:user_net_quota:5m{S} / 300
+  > 5 * ((new_api:user_net_quota:7d{S} > 0) / 604800))
+and (new_api:user_net_quota:5m{S} > 500000)
+
+# Positive wallet would last less than one hour at the last 15m net speed.
+new_api:user_wallet:seconds15m{S} < 3600
+
+# Already exhausted, independent of consumption speed.
+new_api:user_wallet_balance_quota:valid{S} <= 0
+```
+
+For collection alerts, use the same fixed target selector without user_id:
+`new_api_wallet_snapshot_success == 0` with `for: 3m`,
+`time() - new_api_wallet_snapshot_timestamp_seconds >= 180`, and `up == 0`.
+Also cover a missing expected target/metric with `absent_over_time(up{...}[3m])`
+and `absent_over_time(new_api_wallet_snapshot_success{...}[3m])` using concrete
+job/instance/deployment matchers. Missing data is not zero consumption. Grafana
+alerts should route No Data/Error as monitoring failures, not “Normal”.
+
+### Multiple replicas and resource correlation
+
+Wallet snapshots represent the **same database**, unlike process-local relay and
+admission Counters. Never sum wallet balances/usage across replicas, and do not
+independently take max(balance) and max(used_quota). Query times, scrape times and
+failed snapshots differ. Default examples intentionally pin one target.
+
+An optional automatic source selection can use this expression as a recording
+rule named `new_api:wallet_source:selected` (one job and one database per deployment):
+
+```promql
+topk by (deployment) (
+  1,
+  new_api_wallet_snapshot_timestamp_seconds{job="new-api"}
+  and on(job, instance, deployment) (new_api:wallet_snapshot:healthy == 1)
+)
+```
+
+Apply the **same** marker to each valid balance, info and net-usage result using
+`and on(job, instance, deployment) new_api:wallet_source:selected`. Calculate the
+endpoint difference **before** source selection, retaining instance. If the
+chosen instance lacks history, omit its forecast; never borrow another instance's
+old endpoint. Tied timestamps may select either target; pinning is more stable.
+Separate databases require separate deployment labels. Downstream HA Prometheus
+replicas still require normal backend deduplication.
+
+Compare consumption with `new_api_user_window_requests` (rolling RPM),
+`new_api_user_window_input_tokens` (estimated input TPM) and
+`new_api_user_inflight_requests` for the same user. Redis scope is shared; memory
+scope is process-local. Reuse the resource queries above for their aggregation.
+Local admission/relay Counters can use `sum(rate(...))`; relay metrics have no
+user label. Usage plus RPM growth suggests request growth; usage plus input TPM
+suggests larger inputs; otherwise inspect model prices/output/logs as available.
+These are diagnostic correlations, not automatic cause classification. Logs can
+be disabled without affecting wallet monitoring.
