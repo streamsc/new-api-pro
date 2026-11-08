@@ -48,7 +48,7 @@ type DiagnosticMetadata struct {
 func diagnosticSecretHeader(key string, extra []string) bool {
 	key = strings.ToLower(key)
 	switch key {
-	case "authorization", "proxy-authorization", "cookie", "set-cookie", "x-api-key", "api-key", "apikey", "x-goog-api-key", "x-auth-token", "x-access-token", "sec-websocket-protocol":
+	case "authorization", "proxy-authorization", "cookie", "set-cookie", "x-api-key", "api-key", "apikey", "x-goog-api-key", "mj-api-secret", "x-auth-token", "x-access-token", "sec-websocket-protocol":
 		return true
 	}
 	for _, excluded := range extra {

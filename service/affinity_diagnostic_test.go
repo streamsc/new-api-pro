@@ -229,6 +229,7 @@ func TestAffinityDiagnosticCaptureAndExtraction(t *testing.T) {
 		c := diagnosticRequest(body)
 		c.Request.Header["X-Session"] = []string{" first ", "second"}
 		c.Request.Header.Set("Authorization", "Bearer secret")
+		c.Request.Header.Set("Mj-Api-Secret", "midjourney-credential")
 		c.Request.Host = "example.test"
 		c.Set("token_id", int64(4))
 		c.Set("group", " group ")
@@ -242,8 +243,10 @@ func TestAffinityDiagnosticCaptureAndExtraction(t *testing.T) {
 		sample := drainDiagnostic(t, svc)
 		assert.Equal(t, body, sample.Body)
 		assert.NotContains(t, string(sample.Metadata), "Bearer secret")
+		assert.NotContains(t, string(sample.Metadata), "midjourney-credential")
 		var metadata DiagnosticMetadata
 		require.NoError(t, common.Unmarshal(sample.Metadata, &metadata))
+		assert.Equal(t, "not_collected", metadata.HeaderStates["Mj-Api-Secret"])
 		input := DiagnosticSampleInput{metadata, sample.Body}
 		for _, src := range []operation_setting.ChannelAffinityKeySource{{Type: "gjson", Path: "key"}, {Type: "gjson", Path: "zero"}, {Type: "gjson", Path: "null"}, {Type: "gjson", Path: "obj"}, {Type: "gjson", Path: "absent"}, {Type: "context_int", Key: "token_id"}, {Type: "context_int", Key: "id"}, {Type: "context_string", Key: "group"}, {Type: "request_header", Key: "x-session"}, {Type: "request_header", Key: "Host"}} {
 			// Rebuild a separate live request; its body is read by the real online evaluator.
