@@ -1,0 +1,55 @@
+[
+  {
+    "PASS": "single-node real HTTP, fixed channel, four-source extraction, exact download, headers, stop",
+    "samples": 20,
+    "disabled": {
+      "count": 20,
+      "mean_ms": 5.93,
+      "p95_ms": 13.306,
+      "p99_ms": 13.306
+    },
+    "enabled": {
+      "count": 20,
+      "mean_ms": 7.253,
+      "p95_ms": 22.331,
+      "p99_ms": 22.331
+    }
+  },
+  {
+    "PASS": "single-node delete immediately fences list and downloads"
+  },
+  {
+    "PASS": "real upstream retry captures one external request",
+    "upstream_attempts": 2,
+    "samples": 1
+  },
+  {
+    "PASS": "single-node process restart ends task and preserves saved sample"
+  },
+  {
+    "PASS": "dual real gateways with shared MySQL and Redis enforce one task and global quota",
+    "requests": 16,
+    "samples": 10,
+    "nodes": [
+      "issue17-33692",
+      "issue17-33693"
+    ],
+    "latency": {
+      "count": 16,
+      "mean_ms": 28.157,
+      "p95_ms": 66.698,
+      "p99_ms": 66.698
+    }
+  },
+  {
+    "PASS": "delete on second node fences reads on first node"
+  },
+  {
+    "PASS": "Redis outage keeps business request successful and task deadline still stops capture"
+  },
+  {
+    "PASS": "acceptance complete; real browser gateway available",
+    "port": 33691,
+    "run": "/Users/shence/code/aicode/new-api-workspace/new-api-pro/output/issue17-validation/live-20261108-100152"
+  }
+]

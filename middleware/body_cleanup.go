@@ -11,6 +11,7 @@ import (
 func BodyStorageCleanup() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
+			service.FinishAffinityDiagnostic(c)
 			// 请求结束后清理存储
 			common.CleanupBodyStorage(c)
 

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 	"testing/iotest"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -52,6 +53,19 @@ func TestPrepareTaskPluginSubmitRejectsMissingModel(t *testing.T) {
 }
 
 func TestPrepareTaskPluginRouteUsesCanonicalContextAndResolvedSubmit(t *testing.T) {
+	setupTaskPluginRouteDB(t)
+	sqlDB, err := model.DB.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	t.Cleanup(func() { sqlDB.Close() })
+	require.NoError(t, model.DB.AutoMigrate(&model.User{}, &model.Channel{}, &model.AffinityDiagnosticControl{}, &model.AffinityDiagnosticTask{}, &model.AffinityDiagnosticSample{}))
+	require.NoError(t, model.DB.Create(&model.User{Id: 17, Username: "plugin-diagnostic", Password: "unused"}).Error)
+	require.NoError(t, model.InitAffinityDiagnostics(context.Background(), true))
+	diagnostics := service.NewAffinityDiagnosticService(nil)
+	diagnostics.Start()
+	t.Cleanup(diagnostics.Close)
+	task, err := diagnostics.Create(context.Background(), service.DiagnosticCreate{UserID: 17, CaptureBody: true}, 1)
+	require.NoError(t, err)
 	plugin := compileTaskRoutePlugin(t, `
 export const meta = {
   apiVersion: 1, key: "route-submit-test", name: "Submit", version: "1.0.0",
@@ -87,6 +101,11 @@ export function parseTaskResult() { return {status: "SUCCESS"}; }
 		assert.Equal(t, "route-submit-test", c.GetString("expected_task_plugin_key"))
 		assert.Equal(t, "route-submit-test", c.GetString("task_plugin_key"))
 		assert.Equal(t, "route-submit-test", c.GetString("platform"))
+		c.Set("id", 17)
+		// Even a rejected route observes the original cached HTTP body, not the
+		// plugin's decoded replacement object. Use a missing pin to avoid I/O.
+		service.GetChannelConstraints(c).AddPin(dto.ChannelPin{ChannelId: 99999, Source: dto.PinSourceToken, Rank: dto.PinRankToken})
+		_, _, _ = service.SelectChannelForRequest(c, "resolved-model", &service.RetryParam{Ctx: c, ModelName: "resolved-model", TokenGroup: "default"})
 		c.Status(http.StatusNoContent)
 	})
 	request := httptest.NewRequest(http.MethodPost, "/vendor/jobs/video?tag=first&tag=second", strings.NewReader(`["prompt",2]`))
@@ -97,6 +116,15 @@ export function parseTaskResult() { return {status: "SUCCESS"}; }
 
 	assert.True(t, reachedSubmit)
 	assert.Equal(t, http.StatusNoContent, recorder.Code)
+	var samples []model.AffinityDiagnosticSample
+	require.Eventually(t, func() bool {
+		return model.DB.Where("task_id = ?", task.ID).Find(&samples).Error == nil && len(samples) == 1
+	}, 3*time.Second, 10*time.Millisecond)
+	assert.Equal(t, `["prompt",2]`, string(samples[0].Body))
+	var metadata service.DiagnosticMetadata
+	require.NoError(t, common.Unmarshal(samples[0].Metadata, &metadata))
+	assert.Equal(t, "resolved-model", metadata.Context["resolved_task_model"].String)
+	assert.Equal(t, "route-submit-test", metadata.Context["task_plugin_key"].String)
 }
 
 // Native routes and the generic submit entry hand a plugin declaring

@@ -277,6 +277,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 	}
 	defer releaseResources()
 
+	service.CaptureAffinityDiagnostic(c, modelName, create.Body, s.lockedChannelID != 0)
 	if s.lockedChannelID != 0 {
 		if apiErr = s.restoreConnectionContext(c, modelName); apiErr != nil {
 			return apiErr

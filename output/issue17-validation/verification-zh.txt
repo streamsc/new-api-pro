@@ -1,0 +1,81 @@
+Issue #17 — 实现验证记录（中文版）
+代码基线：516e1991c。功能分支：feat/issue17-affinity-diagnostics。验证日期：2026-11-08；尚未部署生产环境。
+
+已实现的功能
+
+支持管理员通过浏览器会话创建、停止和删除诊断任务；分页查看任务及样本；下载原样正文；使用与现有亲和逻辑共用的四类字段提取器。采集覆盖 HTTP 首次选路、固定渠道及内部重试去重，保留插件入口的原始正文；Responses WebSocket 按每次逻辑 create 采集规范化正文，包括已经锁定连接的后续请求。不采集响应。
+
+限额与生命周期
+
+默认上限为 600 秒、100 条样本、单正文 1 MiB、单任务 20 MiB，仅允许调低。每节点采集数据预留预算为 8 MiB、并发槽位为 32 个；全局存储预留预算为 100 MiB。样本从任务开始起保留一小时。
+
+请求头限制为 64 个名称、每个名称对应的值合计不超过 4 KiB、编码后的请求头总量不超过 32 KiB。节点预留预算同时考虑元信息字段和编码副本；该预算不是进程实际驻留内存（RSS）或数据库物理文件大小的上限。
+
+Redis 使用全局统一的额度准入控制，原子扣减条数和字节数；准入操作上下文超时为 50 ms。诊断使用独立且关闭自动重试的客户端，复用现有 Sentinel 配置。发现状态缺失、Redis 运行标识变化或可观察的计数回退时，结束旧任务；不使用 SQL 数据重建丢失的 Redis 状态，也不保证识别无法检测的回退。
+
+停止任务后，已获准入的排队样本仍可完成写入；删除和过期会阻止后续写入。物理清理失败时保留存储预留额度。任务状态传播最多约两秒；计数尽力记录，故障或重启后可能不完整。
+
+验证证据
+
+以下日志均位于本记录所在目录：
+
+- final-matrix.log：使用真实 SQLite 3.50.4、MySQL 8.0.46、PostgreSQL 16.15，验证新增表迁移和重复迁移保留已有用户及原始字节，并验证限额、并发启动、停止、删除、过期与清理。
+- final-backend.log：service、model、controller、middleware、relay、router 测试集通过。
+- final-redis-client.log：切换到独立 Redis 客户端后，common、service、router 测试通过。
+- final-race.log、final-capture-race.log：受影响的诊断、WebSocket、插件及 API 路径通过 Go 数据竞争检测。
+- redis-restart.log：实际重启本任务专用的 Redis 测试容器，验证旧任务结束；故障及恢复过程中业务请求正文保持不变。
+- redis-lost-reply.log：真实 Redis 已执行额度申请，但连接丢弃回复；验证仅扣减一次条数、不将样本入队，并通过数据竞争检测。
+- faults.log：写入阻塞时队列保持有界；停止后已获准入的 32 条样本完成写入，另有 9 次因容量不足被丢弃并计数；清理失败时不释放预留额度。
+- plugin-integration.log、websocket-integration.log：验证插件入口保留原始 JSON；两次 WebSocket 逻辑 create 均有样本，原有结算断言仍通过。
+- final-frontend-tests.log：81 项受影响的前端测试通过。final-diagnostic-ui-tests.log：6 项诊断模块测试通过，包括本地化回归测试。两组存在重叠，不应直接相加为独立测试总数。
+- final-typecheck.log、final-lint.log、final-build-web.log、final-build-go.log：类型检查、涉及文件的 lint、前端生产构建及 Go 构建通过。
+- 初次浏览器页面检查使用 API 测试数据。后续已补充真实网关登录、创建任务、采集与查看样本、手动字段提取，并检查桌面（1440×1000）及移动端（390×844）详情布局。最终构建的实际样本提取返回 browser-session；截图为 output/playwright/issue17/live-desktop.png、live-mobile.png。上游为本地 TCP 模拟服务，不是生产提供方。
+
+收尾审查与真实进程验收
+
+- 修复 Redis 不可用时先检查 Redis、未及时处理任务截止时间的问题。新增回归测试在修复前失败（review-deadline-before.log），修复后通过（review-deadline-after.log）。真实双节点故障验收也确认任务按 deadline 停止。
+- 修复自定义排除 User-Agent、Host 后，值仍可能通过独立元信息字段保存的问题；回归测试确认重复字段与请求头均不保留相应值。
+- 核对认证入口后补齐内置凭据头 mj-api-secret 的过滤；原有正文保留用例增加该头的排除断言，并通过数据竞争检测（review-credential-headers.log）。
+- 样本列表查询失败后隐藏已打开的详情，避免继续展示缓存详情；在现有按需详情用例中覆盖该回归。
+- 补齐七种语言的新增文案，并登记动态状态和服务器消息的静态翻译键。遵循 i18n-translate 脚本写入及 i18n:sync 流程。
+- review-matrix.log：再次通过真实三引擎矩阵，版本同上；包含新建、重复迁移与已有数据保留验证。
+- review-backend.log：common、service、model、controller、middleware、relay、router 测试集通过。
+- review-race.log：service、middleware、controller、router 的诊断、Responses WebSocket 及插件相关路径通过数据竞争检测。
+- review-frontend-tests.log：受影响的 10 个测试文件、82 项测试通过；后续七语言标题校验及诊断模块 6 项测试通过（review-ui-tests.log，两组有重叠）。
+- review-typecheck.log、review-lint-affected.log、review-format.log、review-build-web.log、review-build-go.log：类型检查、全部涉及的手写前端文件 lint/格式检查、前端生产构建与 Go 构建通过。
+- 完整 bun run lint 仍失败（review-lint.log），包括既有 rankings 的嵌套三元表达式、assets 的类型导入及 scripts/sync-i18n.mjs 的花括号问题；本次涉及文件的 lint 无错误。没有将全项目 lint 描述为通过。
+
+真实进程命令：先执行 go build -o output/issue17-validation/gateway .，再执行 python3 output/issue17-validation/live-acceptance.py --serve。前置条件为本任务专用的 issue17-mysql、issue17-redis 测试容器；脚本使用新建独立 MySQL 数据库和专用 Redis DB 5，不访问其他验收或生产实例。验收后已关闭本任务的浏览器、网关和测试容器，移除临时二进制与测试登录凭据。
+
+live-acceptance.log 与 live-acceptance-result.json 记录最终构建的结果：
+
+- 单节点无 Redis：真实 HTTP 原文包含空白及重复 JSON 键，下载逐字节一致；固定渠道标记、四类字段提取、凭据头排除、停止后不增加样本、删除后 410、重启终止任务且保留已存样本均通过。
+- 上游第一次返回 500、重试后成功：实际两次上游尝试，仅保存一个外部请求样本。验收实例显式将 RetryTimes 调为 1。
+- 两个独立 Go 网关进程共享 MySQL＋Redis：第二节点创建任务返回 409；并发发送 16 个请求，全部业务成功，共保存 10 条样本，包含两个节点，已申请条数为 10，按 count_limit 停止。
+- 在第二节点删除后，第一节点的样本查询立即返回 410。
+- 停止专用 Redis 容器时，业务请求继续成功；直接读取 MySQL 确认任务按 deadline 停止，Redis 恢复后通过管理 API 再次确认。既有管理 API 全局限流依赖 Redis，故障期间可能返回 500；不能保证此时能通过页面查看暂停状态。本次未修改该既有机制。
+- 验收机器磁盘占用约 96.6%，触发既有 95% 保护；仅将隔离测试实例的磁盘监控阈值调至 99%，未修改产品默认值或生产配置。
+
+网络时延仅作端到端工作量记录：每种模式 20 次顺序请求，关闭采集均值 5.930 ms、P95/P99 13.306 ms；开启采集均值 7.253 ms、P95/P99 22.331 ms。双节点 16 次请求均值 28.157 ms、P95/P99 66.698 ms。样本量小、共享本机资源且存在数据库争用，P95/P99 等于样本尾部值，不能用于容量或回归显著性结论。
+
+性能测量范围与限制
+
+performance.log 记录 Apple M4 / Darwin arm64 上的采集入口微基准，包含七种模式及 CPU、内存分析文件，不包含数据库写入。在复用请求上下文的微基准中，关闭诊断、用户不匹配、队列已满三条路径的分配量为零；这不代表整个 HTTP 请求没有内存分配。
+
+每个子基准最多记录前 100,000 次操作，用于计算 P95/P99；计时本身存在测量开销。/usr/bin/time 包含调度、挂起及进程开销；本次观察到的实际经过时间远长于 CPU 时间，不能将其作为可靠的容量指标。本次操作系统块 I/O 计数为零（存在缓存 I/O），不等于没有磁盘活动。
+
+http-performance.log 在每种模式下执行 100 次模拟 HTTP 请求，实际运行正文缓存、公共固定渠道选路、正文不变性检查及 SQLite 异步写入。1 MiB 正文场景保存了 19 条样本，随后受到 20 MiB 任务总量上限约束；1 KiB 突发请求场景出现了预期的队列丢样。
+
+这些短时间、顺序执行的本机测试包含初始化、缓存和数据库争用影响，不代表生产吞吐上限或提供方响应延迟。各项测量值、写入数量、字节数及丢样数量以对应日志为准。
+
+上游升级维护影响
+
+核心运行链路分别在公共渠道选择、WebSocket 逻辑 create、正文清理处增加一行接入。现有亲和字段提取改为委托给共用求值器，不改变亲和缓存键语义。其余新增内容主要为独立功能模块，以及启动、增量迁移、路由与权限声明、前端入口。
+
+跟进上游升级时，应重点检查选路、重试、正文存储生命周期及 WebSocket 规范化的变化，并重跑对应集成测试。常规上游合并预计维护成本为低至中等；如果上游重写这些生命周期边界，需要重新核对语义，不能只以无文本冲突作为兼容依据。
+
+安全验证范围
+
+复用现有 AdminAuth 和会话机制；普通具有作用域权限的个人访问令牌不能访问诊断路由。未认证用户和普通用户的访问被拒绝，包括原文下载及字段提取接口。凭据请求头被排除；完整 JSON 正文需要显式开启采集，并按原样保存。
+
+下载响应设置 attachment、no-store、nosniff。样本 INSERT 使用静默 GORM 日志，避免 SQL 错误日志插入正文参数。已参考 OWASP 授权、认证及会话管理速查表（https://cheatsheetseries.owasp.org/）；这不构成完成完整 ASVS 审计的声明。本次没有重新设计认证协议或会话生命周期。
