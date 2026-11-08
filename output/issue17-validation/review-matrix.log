@@ -1,0 +1,62 @@
+=== RUN   TestAffinityDiagnosticDatabaseMatrix
+=== RUN   TestAffinityDiagnosticDatabaseMatrix/sqlite
+    affinity_diagnostic_test.go:125: database version: 3.50.4
+=== RUN   TestAffinityDiagnosticDatabaseMatrix/mysql
+    affinity_diagnostic_test.go:125: database version: 8.0.46
+=== RUN   TestAffinityDiagnosticDatabaseMatrix/postgres
+    affinity_diagnostic_test.go:125: database version: PostgreSQL 16.15 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+--- PASS: TestAffinityDiagnosticDatabaseMatrix (1.40s)
+    --- PASS: TestAffinityDiagnosticDatabaseMatrix/sqlite (0.07s)
+    --- PASS: TestAffinityDiagnosticDatabaseMatrix/mysql (0.75s)
+    --- PASS: TestAffinityDiagnosticDatabaseMatrix/postgres (0.58s)
+=== RUN   TestAffinityDiagnosticCaptureAndExtraction
+=== RUN   TestAffinityDiagnosticCaptureAndExtraction/off_and_other_user_never_read_body
+=== RUN   TestAffinityDiagnosticCaptureAndExtraction/passive_read_preserves_bytes_and_headers_and_typed_context
+=== RUN   TestAffinityDiagnosticCaptureAndExtraction/oversized_body_retains_metadata_without_reading
+=== RUN   TestAffinityDiagnosticCaptureAndExtraction/normalized_websocket_body_each_logical_request
+=== RUN   TestAffinityDiagnosticCaptureAndExtraction/unread_stream_releases_capture_budget_at_cleanup
+=== RUN   TestAffinityDiagnosticCaptureAndExtraction/queue_and_memory_exhaustion_never_block_business
+--- PASS: TestAffinityDiagnosticCaptureAndExtraction (0.02s)
+    --- PASS: TestAffinityDiagnosticCaptureAndExtraction/off_and_other_user_never_read_body (0.00s)
+    --- PASS: TestAffinityDiagnosticCaptureAndExtraction/passive_read_preserves_bytes_and_headers_and_typed_context (0.00s)
+    --- PASS: TestAffinityDiagnosticCaptureAndExtraction/oversized_body_retains_metadata_without_reading (0.00s)
+    --- PASS: TestAffinityDiagnosticCaptureAndExtraction/normalized_websocket_body_each_logical_request (0.00s)
+    --- PASS: TestAffinityDiagnosticCaptureAndExtraction/unread_stream_releases_capture_budget_at_cleanup (0.00s)
+    --- PASS: TestAffinityDiagnosticCaptureAndExtraction/queue_and_memory_exhaustion_never_block_business (0.00s)
+=== RUN   TestAffinityDiagnosticQuotaConcurrencyAndDelete
+--- PASS: TestAffinityDiagnosticQuotaConcurrencyAndDelete (0.02s)
+=== RUN   TestAffinityDiagnosticRedisGlobalAdmissionAndLoss
+--- PASS: TestAffinityDiagnosticRedisGlobalAdmissionAndLoss (0.06s)
+=== RUN   TestAffinityDiagnosticReaderFailurePreservesBusinessError
+--- PASS: TestAffinityDiagnosticReaderFailurePreservesBusinessError (0.01s)
+=== RUN   TestAffinityDiagnosticDiskSnapshotAndHeaderBounds
+--- PASS: TestAffinityDiagnosticDiskSnapshotAndHeaderBounds (0.01s)
+=== RUN   TestAffinityDiagnosticExcludedHeadersOmitDuplicateMetadata
+--- PASS: TestAffinityDiagnosticExcludedHeadersOmitDuplicateMetadata (0.01s)
+=== RUN   TestAffinityDiagnosticQueueAndWriteFailuresRetainQuota
+--- PASS: TestAffinityDiagnosticQueueAndWriteFailuresRetainQuota (0.01s)
+=== RUN   TestAffinityDiagnosticFirstPinnedSelectionDoesNotResampleRetry
+--- PASS: TestAffinityDiagnosticFirstPinnedSelectionDoesNotResampleRetry (0.01s)
+=== RUN   TestAffinityDiagnosticShutdownReleasesQueuedPayloads
+--- PASS: TestAffinityDiagnosticShutdownReleasesQueuedPayloads (0.01s)
+=== RUN   TestAffinityDiagnosticStoppedCreationCannotActivate
+--- PASS: TestAffinityDiagnosticStoppedCreationCannotActivate (0.01s)
+=== RUN   TestAffinityDiagnosticDelayedRedisInitializationCannotReplaceNewerTask
+--- PASS: TestAffinityDiagnosticDelayedRedisInitializationCannotReplaceNewerTask (0.00s)
+=== RUN   TestAffinityDiagnosticSlowWriterIsBoundedAndStopDrains
+--- PASS: TestAffinityDiagnosticSlowWriterIsBoundedAndStopDrains (0.03s)
+=== RUN   TestAffinityDiagnosticCleanupFailureKeepsReservation
+--- PASS: TestAffinityDiagnosticCleanupFailureKeepsReservation (0.01s)
+=== RUN   TestAffinityDiagnosticRedisPauseRecoveryAndRestart
+--- PASS: TestAffinityDiagnosticRedisPauseRecoveryAndRestart (0.01s)
+=== RUN   TestAffinityDiagnosticHTTPWorkload
+    affinity_diagnostic_test.go:761: TEST_DIAGNOSTIC_LOAD not configured
+--- SKIP: TestAffinityDiagnosticHTTPWorkload (0.00s)
+=== RUN   TestAffinityDiagnosticCompletedObserverReleasesCapturedFields
+--- PASS: TestAffinityDiagnosticCompletedObserverReleasesCapturedFields (0.01s)
+=== RUN   TestAffinityDiagnosticLostRedisReplyDoesNotRetryAdmission
+--- PASS: TestAffinityDiagnosticLostRedisReplyDoesNotRetryAdmission (0.02s)
+=== RUN   TestAffinityDiagnosticDeadlineStopsWithoutRedis
+--- PASS: TestAffinityDiagnosticDeadlineStopsWithoutRedis (0.01s)
+PASS
+ok  	github.com/QuantumNous/new-api/service	3.480s

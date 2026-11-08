@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useNavigate } from '@tanstack/react-router'
 import type { Row } from '@tanstack/react-table'
 import {
   Pencil,
@@ -75,6 +76,7 @@ interface DataTableRowActionsProps {
 }
 
 export function DataTableRowActions({ row }: DataTableRowActionsProps) {
+  const navigate = useNavigate()
   const { t } = useTranslation()
   const user = row.original
   const {
@@ -275,6 +277,16 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           </DropdownMenuShortcut>
         </DropdownMenuItem>
 
+        <DropdownMenuItem
+          onClick={() =>
+            void navigate({
+              to: '/affinity-diagnostics',
+              search: { user_id: row.original.id },
+            })
+          }
+        >
+          {t('Affinity diagnostics')}
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
 
         <DropdownMenuItem

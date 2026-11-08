@@ -115,3 +115,10 @@ func newRedisFailoverOptions(opt *redis.Options, sentinelConfig *redisSentinelCo
 		TLSConfig:          opt.TLSConfig,
 	}
 }
+
+// NewRedisClient creates an independently owned client using the deployment's
+// existing Sentinel configuration and caller-provided pool/retry options.
+func NewRedisClient(opt *redis.Options) (*redis.Client, error) {
+	client, _, err := newRedisClient(opt)
+	return client, err
+}

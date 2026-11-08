@@ -4,7 +4,6 @@ import (
 	"hash/fnv"
 	"maps"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,7 +16,6 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/hot"
-	"github.com/tidwall/gjson"
 )
 
 const (
@@ -288,51 +286,7 @@ func matchAnyIncludeFold(patterns []string, s string) bool {
 }
 
 func extractChannelAffinityValue(c *gin.Context, src operation_setting.ChannelAffinityKeySource) string {
-	switch src.Type {
-	case "context_int":
-		if src.Key == "" {
-			return ""
-		}
-		v := c.GetInt(src.Key)
-		if v <= 0 {
-			return ""
-		}
-		return strconv.Itoa(v)
-	case "context_string":
-		if src.Key == "" {
-			return ""
-		}
-		return strings.TrimSpace(c.GetString(src.Key))
-	case "request_header":
-		if c == nil || c.Request == nil || src.Key == "" {
-			return ""
-		}
-		return strings.TrimSpace(c.Request.Header.Get(src.Key))
-	case "gjson":
-		if src.Path == "" {
-			return ""
-		}
-		storage, err := common.GetBodyStorage(c)
-		if err != nil {
-			return ""
-		}
-		body, err := storage.Bytes()
-		if err != nil || len(body) == 0 {
-			return ""
-		}
-		res := gjson.GetBytes(body, src.Path)
-		if !res.Exists() {
-			return ""
-		}
-		switch res.Type {
-		case gjson.String, gjson.Number, gjson.True, gjson.False:
-			return strings.TrimSpace(res.String())
-		default:
-			return strings.TrimSpace(res.Raw)
-		}
-	default:
-		return ""
-	}
+	return EvaluateAffinityValue(liveAffinityInput{c}, src).Value
 }
 
 func buildChannelAffinityCacheKeySuffix(rule operation_setting.ChannelAffinityRule, modelName string, usingGroup string, affinityValue string) string {

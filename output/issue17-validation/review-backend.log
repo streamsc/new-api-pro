@@ -1,0 +1,7 @@
+ok  	github.com/QuantumNous/new-api/common	(cached)
+ok  	github.com/QuantumNous/new-api/service	2.027s
+ok  	github.com/QuantumNous/new-api/model	(cached)
+ok  	github.com/QuantumNous/new-api/controller	39.727s
+ok  	github.com/QuantumNous/new-api/middleware	1.830s
+ok  	github.com/QuantumNous/new-api/relay	1.017s
+ok  	github.com/QuantumNous/new-api/router	3.360s

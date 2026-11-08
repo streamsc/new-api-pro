@@ -335,6 +335,9 @@ func migrateDB() error {
 	}
 
 	err := DB.AutoMigrate(
+		&AffinityDiagnosticControl{},
+		&AffinityDiagnosticTask{},
+		&AffinityDiagnosticSample{},
 		&Channel{},
 		&Token{},
 		&User{},

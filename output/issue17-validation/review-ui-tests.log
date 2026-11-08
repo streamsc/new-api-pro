@@ -1,0 +1,9 @@
+$ vitest run src/features/affinity-diagnostics
+
+ RUN  v5.0.4 /Users/shence/code/aicode/new-api-workspace/new-api-pro/web
+
+
+ Test Files  2 passed (2)
+      Tests  6 passed (6)
+   Start at  09:55:25
+   Duration  5.09s (import 54%, transform 18%, environment 15%, tests 7%, setup 6%)

@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { useEffect, useMemo } from 'react'
 import { useForm, useFormContext, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -59,7 +60,14 @@ export function RoutingPolicySection() {
       />
     )
   }
-  return <RoutingPolicyEditor config={query.data} />
+  return (
+    <>
+      <Link to='/affinity-diagnostics' className='text-primary underline'>
+        {t('Affinity diagnostics')}
+      </Link>
+      <RoutingPolicyEditor config={query.data} />
+    </>
+  )
 }
 
 function RoutingPolicyEditor(props: { config: PolicyConfig }) {

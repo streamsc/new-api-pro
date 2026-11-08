@@ -564,6 +564,14 @@ func TestResponsesWebSocketReusesConnectionAndSettlesEachRequest(t *testing.T) {
 		}
 	})
 	client, user, token := fixture.client, fixture.user, fixture.token
+	require.NoError(t, model.DB.AutoMigrate(&model.AffinityDiagnosticControl{}, &model.AffinityDiagnosticTask{}, &model.AffinityDiagnosticSample{}))
+	require.NoError(t, model.InitAffinityDiagnostics(context.Background(), true))
+	diagnostics := service.NewAffinityDiagnosticService(nil)
+	diagnostics.Start()
+	require.NotNil(t, diagnostics)
+	t.Cleanup(diagnostics.Close)
+	diagnosticTask, diagnosticErr := diagnostics.Create(context.Background(), service.DiagnosticCreate{UserID: user.Id, CaptureBody: true}, user.Id)
+	require.NoError(t, diagnosticErr)
 
 	for index, payload := range []string{
 		`{"type":"response.create","model":"ws-billing","input":"first","service_tier":"default"}`,
@@ -651,6 +659,24 @@ func TestResponsesWebSocketReusesConnectionAndSettlesEachRequest(t *testing.T) {
 	assert.Equal(t, 3000, token.UsedQuota)
 	assert.Equal(t, 97000, user.Quota)
 	assert.Equal(t, 3000, user.UsedQuota)
+	var samples []model.AffinityDiagnosticSample
+	require.EventuallyWithT(t, func(check *assert.CollectT) {
+		assert.NoError(check, model.DB.Where("task_id = ?", diagnosticTask.ID).Order("id").Find(&samples).Error)
+		assert.Len(check, samples, 2)
+	}, 3*time.Second, 10*time.Millisecond)
+	for index, sample := range samples {
+		assert.Equal(t, "responses_ws_normalized", sample.BodyKind)
+		var body map[string]any
+		require.NoError(t, common.Unmarshal(sample.Body, &body))
+		assert.NotContains(t, body, "type")
+		assert.Equal(t, "ws-billing", body["model"], "sample precedes upstream model conversion")
+		var metadata service.DiagnosticMetadata
+		require.NoError(t, common.Unmarshal(sample.Metadata, &metadata))
+		if index == 1 {
+			assert.Equal(t, "connection_locked", metadata.AffinityBypass)
+		}
+	}
+
 }
 
 // Both transports must reach the same upstream target with the same
