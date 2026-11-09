@@ -1,0 +1,39 @@
+=== RUN   TestUsageRequestHeadersDatabaseMatrix
+=== RUN   TestUsageRequestHeadersDatabaseMatrix/sqlite
+    relay_error_log_test.go:305: separate log database: sqlite 3.50.4
+[INFO] 2026/11/08 - 16:18:06 | header-request | record error log: userId=7, channelId=0, modelName=header-model, tokenName=, content=retry
+[INFO] 2026/11/08 - 16:18:06 | header-request | record consume log: userId=7, params={"channel_id":0,"prompt_tokens":0,"completion_tokens":0,"model_name":"header-model","token_name":"","quota":0,"content":null,"token_id":11,"use_time_seconds":0,"is_stream":false,"group":"","other":{"task_id":"task-header"}}
+[INFO] 2026/11/08 - 16:18:06 | header-request | record consume log: userId=7, params={"channel_id":0,"prompt_tokens":0,"completion_tokens":0,"model_name":"header-model","token_name":"","quota":0,"content":null,"token_id":11,"use_time_seconds":0,"is_stream":false,"group":"","other":{"task_id":"task-header"}}
+=== RUN   TestUsageRequestHeadersDatabaseMatrix/mysql
+    relay_error_log_test.go:288: isolated database: newapi_audit_1794125886833028000 (mysql)
+
+2026/11/08 16:18:07 /Users/shence/code/aicode/new-api-workspace/new-api-pro/controller/relay_error_log_test.go:297 SLOW SQL >= 200ms
+[522.697ms] [rows:0] CREATE TABLE `logs` (`id` bigint AUTO_INCREMENT,`user_id` bigint,`created_at` bigint,`type` bigint,`content` longtext,`username` varchar(191) DEFAULT '',`token_name` varchar(191) DEFAULT '',`model_name` varchar(191) DEFAULT '',`quota` bigint DEFAULT 0,`prompt_tokens` bigint DEFAULT 0,`completion_tokens` bigint DEFAULT 0,`use_time` bigint DEFAULT 0,`is_stream` boolean,`channel_id` bigint,`channel_name` longtext,`token_id` bigint DEFAULT 0,`group` varchar(191),`ip` varchar(191) DEFAULT '',`request_id` varchar(64) DEFAULT '',`upstream_request_id` varchar(128) DEFAULT '',`other` longtext,PRIMARY KEY (`id`),INDEX `idx_user_id_id` (`user_id`,`id`),INDEX `idx_logs_user_id` (`user_id`),INDEX `idx_logs_username` (`username`),INDEX `index_username_model_name` (`model_name`,`username`),INDEX `idx_logs_token_name` (`token_name`),INDEX `idx_logs_model_name` (`model_name`),INDEX `idx_logs_token_id` (`token_id`),INDEX `idx_logs_group` (`group`),INDEX `idx_created_at_id` (`created_at`,`id`),INDEX `idx_created_at_type` (`created_at`,`type`),INDEX `idx_logs_channel_id` (`channel_id`),INDEX `idx_logs_ip` (`ip`),INDEX `idx_logs_request_id` (`request_id`),INDEX `idx_logs_upstream_request_id` (`upstream_request_id`))
+    relay_error_log_test.go:305: separate log database: mysql 8.0.46
+[INFO] 2026/11/08 - 16:18:07 | header-request | record error log: userId=7, channelId=0, modelName=header-model, tokenName=, content=retry
+[INFO] 2026/11/08 - 16:18:07 | header-request | record consume log: userId=7, params={"channel_id":0,"prompt_tokens":0,"completion_tokens":0,"model_name":"header-model","token_name":"","quota":0,"content":null,"token_id":11,"use_time_seconds":0,"is_stream":false,"group":"","other":{"task_id":"task-header"}}
+[INFO] 2026/11/08 - 16:18:07 | header-request | record consume log: userId=7, params={"channel_id":0,"prompt_tokens":0,"completion_tokens":0,"model_name":"header-model","token_name":"","quota":0,"content":null,"token_id":11,"use_time_seconds":0,"is_stream":false,"group":"","other":{"task_id":"task-header"}}
+=== RUN   TestUsageRequestHeadersDatabaseMatrix/postgres
+
+2026/11/08 16:18:08 /Users/shence/code/aicode/new-api-workspace/new-api-pro/controller/access_token_audit_test.go:838 SLOW SQL >= 200ms
+[323.192ms] [rows:0] CREATE DATABASE newapi_audit_1794125887998371000
+    relay_error_log_test.go:288: isolated database: newapi_audit_1794125887998371000 (postgres)
+    relay_error_log_test.go:305: separate log database: postgres PostgreSQL 16.15 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+[INFO] 2026/11/08 - 16:18:08 | header-request | record error log: userId=7, channelId=0, modelName=header-model, tokenName=, content=retry
+[INFO] 2026/11/08 - 16:18:08 | header-request | record consume log: userId=7, params={"channel_id":0,"prompt_tokens":0,"completion_tokens":0,"model_name":"header-model","token_name":"","quota":0,"content":null,"token_id":11,"use_time_seconds":0,"is_stream":false,"group":"","other":{"task_id":"task-header"}}
+[INFO] 2026/11/08 - 16:18:08 | header-request | record consume log: userId=7, params={"channel_id":0,"prompt_tokens":0,"completion_tokens":0,"model_name":"header-model","token_name":"","quota":0,"content":null,"token_id":11,"use_time_seconds":0,"is_stream":false,"group":"","other":{"task_id":"task-header"}}
+=== RUN   TestUsageRequestHeadersDatabaseMatrix/clickhouse
+    relay_error_log_test.go:288: isolated database: newapi_audit_1794125888511150000 (clickhouse)
+[SYS] 2026/11/08 - 16:18:08 | using ClickHouse as log database
+[SYS] 2026/11/08 - 16:18:08 | database migration started
+    relay_error_log_test.go:305: separate log database: clickhouse 25.8.33.6
+[INFO] 2026/11/08 - 16:18:09 | header-request | record error log: userId=7, channelId=0, modelName=header-model, tokenName=, content=retry
+[INFO] 2026/11/08 - 16:18:09 | header-request | record consume log: userId=7, params={"channel_id":0,"prompt_tokens":0,"completion_tokens":0,"model_name":"header-model","token_name":"","quota":0,"content":null,"token_id":11,"use_time_seconds":0,"is_stream":false,"group":"","other":{"task_id":"task-header"}}
+[INFO] 2026/11/08 - 16:18:09 | header-request | record consume log: userId=7, params={"channel_id":0,"prompt_tokens":0,"completion_tokens":0,"model_name":"header-model","token_name":"","quota":0,"content":null,"token_id":11,"use_time_seconds":0,"is_stream":false,"group":"","other":{"task_id":"task-header"}}
+--- PASS: TestUsageRequestHeadersDatabaseMatrix (2.70s)
+    --- PASS: TestUsageRequestHeadersDatabaseMatrix/sqlite (0.11s)
+    --- PASS: TestUsageRequestHeadersDatabaseMatrix/mysql (1.17s)
+    --- PASS: TestUsageRequestHeadersDatabaseMatrix/postgres (0.51s)
+    --- PASS: TestUsageRequestHeadersDatabaseMatrix/clickhouse (0.91s)
+PASS
+ok  	github.com/QuantumNous/new-api/controller	3.888s

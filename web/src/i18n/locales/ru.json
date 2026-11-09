@@ -7458,6 +7458,17 @@
     "Extracted": "Извлечено",
     "HTTP JSON": "JSON HTTP",
     "Responses WebSocket normalized JSON": "Нормализованный JSON Responses WebSocket",
-    "Admitted sample quota": "Квота допущенных образцов"
+    "Admitted sample quota": "Квота допущенных образцов",
+    "Record inbound request headers": "Записывать входящие заголовки",
+    "Save headers after credential filtering in existing usage and error logs, visible only to administrators. This increases log storage.": "Сохранять заголовки после удаления учётных данных в существующих журналах расхода и ошибок. Доступны только администраторам; объём хранения увеличится.",
+    "Additional excluded headers": "Дополнительно исключаемые заголовки",
+    "Enter up to 32 header names separated by commas. Matching ignores case. Built-in credential exclusions always apply. Custom credentials require explicit exclusion.": "Введите до 32 имён через запятую без учёта регистра. Встроенные исключения действуют всегда. Нестандартные заголовки с учётными данными исключайте явно.",
+    "Inbound request headers": "Входящие заголовки запроса",
+    "Copy inbound request headers": "Копировать входящие заголовки",
+    "Headers from the WebSocket handshake; reused for each request on this connection.": "Заголовки рукопожатия WebSocket, повторно используемые для каждого запроса этого соединения.",
+    "Headers captured before authentication and channel overrides, after credential filtering.": "Заголовки до аутентификации и изменений канала, с исключёнными учётными данными.",
+    "Some headers were skipped because of size limits or invalid data. See the skipped counts below.": "Некоторые заголовки пропущены из-за ограничений или некорректных данных. Счётчики указаны ниже.",
+    "Request header recording must be true or false": "Значение должно быть true или false",
+    "Excluded headers must be a JSON array of at most 32 header names": "Исключения должны быть JSON-массивом не более чем из 32 имён"
   }
 }

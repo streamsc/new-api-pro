@@ -7458,6 +7458,17 @@
     "Extracted": "Extrait",
     "HTTP JSON": "JSON HTTP",
     "Responses WebSocket normalized JSON": "JSON normalisé Responses WebSocket",
-    "Admitted sample quota": "Quota d’échantillons admis"
+    "Admitted sample quota": "Quota d’échantillons admis",
+    "Record inbound request headers": "Enregistrer les en-têtes entrants",
+    "Save headers after credential filtering in existing usage and error logs, visible only to administrators. This increases log storage.": "Enregistrer les en-têtes après filtrage des identifiants dans les journaux existants, visibles uniquement par les administrateurs. Cela augmente le stockage.",
+    "Additional excluded headers": "En-têtes supplémentaires à exclure",
+    "Enter up to 32 header names separated by commas. Matching ignores case. Built-in credential exclusions always apply. Custom credentials require explicit exclusion.": "Saisissez jusqu’à 32 noms séparés par des virgules, sans distinction de casse. Les exclusions d’identifiants intégrées restent actives. Excluez explicitement les identifiants personnalisés.",
+    "Inbound request headers": "En-têtes de requête entrants",
+    "Copy inbound request headers": "Copier les en-têtes entrants",
+    "Headers from the WebSocket handshake; reused for each request on this connection.": "En-têtes de la négociation WebSocket, réutilisés pour chaque requête de cette connexion.",
+    "Headers captured before authentication and channel overrides, after credential filtering.": "En-têtes capturés avant l’authentification et les modifications du canal, après filtrage des identifiants.",
+    "Some headers were skipped because of size limits or invalid data. See the skipped counts below.": "Certains en-têtes ont été ignorés en raison des limites ou de données invalides. Consultez les compteurs ci-dessous.",
+    "Request header recording must be true or false": "La valeur doit être true ou false",
+    "Excluded headers must be a JSON array of at most 32 header names": "Les exclusions doivent être un tableau JSON de 32 noms maximum"
   }
 }

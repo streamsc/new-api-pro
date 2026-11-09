@@ -45,30 +45,16 @@ type DiagnosticMetadata struct {
 	MetadataIncomplete bool                              `json:"metadata_incomplete"`
 }
 
-func diagnosticSecretHeader(key string, extra []string) bool {
-	key = strings.ToLower(key)
-	switch key {
-	case "authorization", "proxy-authorization", "cookie", "set-cookie", "x-api-key", "api-key", "apikey", "x-goog-api-key", "mj-api-secret", "x-auth-token", "x-access-token", "sec-websocket-protocol":
-		return true
-	}
-	for _, excluded := range extra {
-		if strings.EqualFold(key, excluded) {
-			return true
-		}
-	}
-	return false
-}
-
 func diagnosticMetadata(c *gin.Context, task model.AffinityDiagnosticTask, modelName, kind, bypass string) DiagnosticMetadata {
 	m := DiagnosticMetadata{CapturedAt: time.Now().UnixMilli(), UserID: task.UserID, BodyKind: kind, AffinityBypass: bypass, Headers: make(http.Header), HeaderStates: map[string]string{}, Context: map[string]DiagnosticContextValue{}}
 	var extra []string
 	_ = common.UnmarshalJsonStr(task.ExtraExcludedHeaders, &extra)
 	userAgent := ""
-	if !diagnosticSecretHeader("User-Agent", extra) {
+	if !common.ExcludeCredentialHeader("User-Agent", extra) {
 		userAgent = c.Request.UserAgent()
 	}
 	host := ""
-	if !diagnosticSecretHeader("Host", extra) {
+	if !common.ExcludeCredentialHeader("Host", extra) {
 		host = c.Request.Host
 	}
 	// Skip oversized fields whole; never retain a slice of an arbitrarily large value.
@@ -100,7 +86,7 @@ func diagnosticMetadata(c *gin.Context, task model.AffinityDiagnosticTask, model
 			m.HeadersIncomplete = true
 			continue
 		}
-		if diagnosticSecretHeader(key, extra) {
+		if common.ExcludeCredentialHeader(key, extra) {
 			m.HeaderStates[canonical] = "not_collected"
 			continue
 		}

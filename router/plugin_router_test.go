@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -223,27 +224,41 @@ func TestWebCacheHeadersDoNotLeakOntoPluginRoutes(t *testing.T) {
 }
 
 func TestPluginInnerContextImportsRequestMetadataAndTrustedProxyConfig(t *testing.T) {
+	settings := operation_setting.GetLogSetting()
+	previous := *settings
+	settings.RequestHeadersEnabled = true
+	t.Cleanup(func() { *settings = previous })
 	plugin := compileRouterPlugin(t, "context-owner", "1.0.0", `[
 		{method: "GET", path: "/vendor/context", type: "dynamic"}
 	]`)
 	handlers := testPluginRouteHandlers(func(c *gin.Context, _ *jsplugin.RoutingGeneration, _ jsplugin.RouteBinding) {
 		c.JSON(http.StatusOK, gin.H{
-			"request_id": c.GetString(common.RequestIdKey),
-			"language":   c.GetString(string(constant.ContextKeyLanguage)),
-			"client_ip":  c.ClientIP(),
-			"route_tag":  c.GetString(middleware.RouteTagKey),
+			"request_id":      c.GetString(common.RequestIdKey),
+			"language":        c.GetString(string(constant.ContextKeyLanguage)),
+			"client_ip":       c.ClientIP(),
+			"route_tag":       c.GetString(middleware.RouteTagKey),
+			"request_headers": c.GetString(model.UsageRequestHeadersKey),
 		})
 	})
 	outer, registry := newPluginRouterTestWithProxies(t, []*jsplugin.LoadedPlugin{plugin}, handlers, []string{"127.0.0.0/8"})
+	outer.Use(middleware.CaptureUsageRequestHeaders())
+	outer.Use(func(c *gin.Context) { c.Request.Header.Set("X-Client", "rewritten"); c.Next() })
 	outer.NoRoute((&pluginRouteDispatcher{registry: registry}).dispatch)
 
 	request := httptest.NewRequest(http.MethodGet, "/vendor/context", nil)
 	request.RemoteAddr = "127.0.0.1:1234"
 	request.Header.Set("X-Forwarded-For", "203.0.113.20")
+	request.Header.Set("X-Client", "native-client")
 	recorder := httptest.NewRecorder()
 	outer.ServeHTTP(recorder, request)
 
-	assert.JSONEq(t, `{"request_id":"request-phase-two","language":"zh-CN","client_ip":"203.0.113.20","route_tag":"relay"}`, recorder.Body.String())
+	var response map[string]string
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	snapshot := response["request_headers"]
+	assert.Contains(t, snapshot, "native-client")
+	assert.NotContains(t, snapshot, "rewritten")
+	delete(response, "request_headers")
+	assert.Equal(t, map[string]string{"request_id": "request-phase-two", "language": "zh-CN", "client_ip": "203.0.113.20", "route_tag": "relay"}, response)
 }
 
 func TestPluginRequestPinsGenerationAcrossHotSwap(t *testing.T) {

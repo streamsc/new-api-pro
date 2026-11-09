@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -187,6 +188,10 @@ func TestUsageUserAgentDatabaseMatrix(t *testing.T) {
 }
 
 func TestUsageUserAgentSurvivesUpstreamHeaderOverride(t *testing.T) {
+	setting := operation_setting.GetLogSetting()
+	previousSetting := *setting
+	setting.RequestHeadersEnabled = true
+	t.Cleanup(func() { *setting = previousSetting })
 	for _, tc := range []struct {
 		name            string
 		stream, failure bool
@@ -246,6 +251,118 @@ func TestUsageUserAgentSurvivesUpstreamHeaderOverride(t *testing.T) {
 			other, err := common.StrToMap(logs[0].Other)
 			require.NoError(t, err)
 			assert.Equal(t, "EntryClient/1", other["user_agent"])
+			headers := other["admin_info"].(map[string]any)["request_headers"].(map[string]any)["headers"].(map[string]any)
+			assert.Equal(t, []any{"EntryClient/1"}, headers["user-agent"])
+			assert.NotContains(t, headers, "authorization")
+		})
+	}
+}
+
+// Exercise real, separately configured log databases and every log projection.
+func TestUsageRequestHeadersDatabaseMatrix(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	previousMaster := common.IsMasterNode
+	common.IsMasterNode = true
+	t.Cleanup(func() { common.IsMasterNode = previousMaster })
+	setting := operation_setting.GetLogSetting()
+	previousSetting := *setting
+	setting.RequestHeadersEnabled = true
+	setting.RequestHeadersExcluded = []string{"X-Company-Secret"}
+	previousConsume, previousExport := common.LogConsumeEnabled, common.DataExportEnabled
+	common.LogConsumeEnabled, common.DataExportEnabled = true, false
+	t.Cleanup(func() {
+		*setting = previousSetting
+		common.LogConsumeEnabled, common.DataExportEnabled = previousConsume, previousExport
+	})
+	for _, tc := range []struct {
+		kind, env string
+		typ       common.DatabaseType
+	}{
+		{"sqlite", "", common.DatabaseTypeSQLite}, {"mysql", "AUDIT_MYSQL_DSN", common.DatabaseTypeMySQL}, {"postgres", "AUDIT_POSTGRES_DSN", common.DatabaseTypePostgreSQL}, {"clickhouse", "AUDIT_CLICKHOUSE_DSN", common.DatabaseTypeClickHouse},
+	} {
+		t.Run(tc.kind, func(t *testing.T) {
+			if tc.env != "" && os.Getenv(tc.env) == "" {
+				t.Skip(tc.env + " is not configured")
+			}
+			mainDB, _ := newAuditTestDatabase(t, "sqlite", "")
+			logDB, isolatedDSN := newAuditTestDatabase(t, tc.kind, os.Getenv(tc.env))
+			useLogExportDatabases(t, mainDB, logDB, common.DatabaseTypeSQLite, tc.typ)
+			require.NoError(t, mainDB.AutoMigrate(&model.User{}, &model.Channel{}, &model.Token{}))
+			require.NoError(t, mainDB.Create(&model.User{Id: 7, Username: "header-owner", Group: "default"}).Error)
+			require.NoError(t, mainDB.Create(&model.Token{Id: 11, UserId: 7, Key: "header-test-token"}).Error)
+			if tc.kind == "clickhouse" {
+				t.Setenv("LOG_SQL_DSN", isolatedDSN)
+				require.NoError(t, model.InitLogDB())
+			} else {
+				require.NoError(t, logDB.AutoMigrate(&model.Log{}))
+			}
+			versionSQL := "SELECT version()"
+			if tc.kind == "sqlite" {
+				versionSQL = "SELECT sqlite_version()"
+			}
+			var version string
+			require.NoError(t, model.LOG_DB.Raw(versionSQL).Scan(&version).Error)
+			t.Logf("separate log database: %s %s", tc.kind, version)
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "http://gateway.example/v1/responses", nil)
+			c.Set("username", "header-owner")
+			c.Set(common.RequestIdKey, "header-request")
+			c.Request.Header["X-Trace"] = []string{"first", "客户端 <script>not HTML</script>"}
+			c.Request.Header.Set("Authorization", "Bearer credential-canary")
+			c.Request.Header.Set("X-Company-Secret", "custom-credential-canary")
+			model.CaptureUsageRequestHeaders(c)
+			c.Request.Header.Set("X-Trace", "rewritten-upstream")
+			other := model.NewLogOther()
+			other.SetPublic("task_id", "task-header")
+			// Both retry errors and consumption reuse the original immutable snapshot.
+			model.RecordErrorLog(c, 7, 0, "header-model", "", "retry", 11, 0, true, "default", other)
+			model.RecordConsumeLog(c, 7, model.RecordConsumeLogParams{ModelName: "header-model", TokenId: 11, Other: other})
+			model.RecordConsumeLog(c, 7, model.RecordConsumeLogParams{ModelName: "header-model", TokenId: 11, Other: other})
+			assert.NotContains(t, other.JSONString(), "request_headers")
+			// Later settlement is correlated without carrying header data.
+			settlement := model.NewLogOther()
+			settlement.SetPublic("task_id", "task-header")
+			model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{UserId: 7, ModelName: "header-model", LogType: model.LogTypeRefund, TokenId: 11, Other: settlement})
+			common.LogConsumeEnabled = false
+			model.RecordConsumeLog(c, 7, model.RecordConsumeLogParams{ModelName: "header-model", TokenId: 11, Other: other})
+			common.LogConsumeEnabled = true
+			var stored []model.Log
+			require.NoError(t, model.LOG_DB.Where("user_id = ?", 7).Find(&stored).Error)
+			require.Len(t, stored, 4)
+			for _, log := range stored {
+				if log.Type == model.LogTypeRefund {
+					assert.NotContains(t, log.Other, "request_headers")
+					assert.Contains(t, log.Other, "task-header")
+					continue
+				}
+				assert.Contains(t, log.Other, "request_headers")
+				assert.Contains(t, log.Other, "gateway.example")
+				assert.Contains(t, log.Other, "first")
+				assert.NotContains(t, log.Other, "credential-canary")
+				assert.NotContains(t, log.Other, "rewritten-upstream")
+			}
+			for _, role := range []int{common.RoleAdminUser, common.RoleRootUser} {
+				list := callLogHandler(t, GetAllLogs, 7, role, "model_name=header-model")
+				encoded, err := common.Marshal(list)
+				require.NoError(t, err)
+				assert.Contains(t, string(encoded), "request_headers")
+				exported := callLogHandler(t, ExportAllLogs, 7, role, "model_name=header-model")
+				encoded, err = common.Marshal(exported)
+				require.NoError(t, err)
+				assert.Contains(t, string(encoded), "request_headers")
+			}
+			for _, role := range []int{common.RoleCommonUser, common.RoleAdminUser} {
+				for _, handler := range []gin.HandlerFunc{GetUserLogs, ExportUserLogs} {
+					projected := callLogHandler(t, handler, 7, role, "model_name=header-model")
+					encoded, err := common.Marshal(projected)
+					require.NoError(t, err)
+					assert.NotContains(t, string(encoded), "request_headers")
+				}
+			}
+			projected := callLogHandler(t, func(c *gin.Context) { c.Set("token_id", 11); GetLogByKey(c) }, 7, common.RoleAdminUser, "")
+			encoded, err := common.Marshal(projected)
+			require.NoError(t, err)
+			assert.NotContains(t, string(encoded), "request_headers")
 		})
 	}
 }

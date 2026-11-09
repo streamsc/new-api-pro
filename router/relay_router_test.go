@@ -1,6 +1,8 @@
 package router
 
 import (
+	"bytes"
+	"compress/gzip"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -123,4 +126,55 @@ func setupRelayRouterTestDB(t *testing.T) {
 			require.NoError(t, os.Unsetenv("SQL_DSN"))
 		}
 	})
+}
+
+func TestInboundHeaderSnapshotCoversProductionModelRoutes(t *testing.T) {
+	setupRelayRouterTestDB(t)
+	settings := operation_setting.GetLogSetting()
+	previous := *settings
+	settings.RequestHeadersEnabled = true
+	settings.RequestHeadersExcluded = nil
+	t.Cleanup(func() { *settings = previous })
+	var snapshot, matched, encoding string
+	engine := gin.New()
+	engine.Use(func(c *gin.Context) {
+		c.Next()
+		snapshot, matched, encoding = c.GetString(model.UsageRequestHeadersKey), c.FullPath(), c.GetHeader("Content-Encoding")
+	})
+	SetRelayRouter(engine)
+	SetTaskPluginProtocolRouter(engine)
+	SetTaskRouter(engine)
+	var compressed bytes.Buffer
+	writer := gzip.NewWriter(&compressed)
+	_, err := writer.Write([]byte(`{"model":"unused"}`))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+	for _, path := range []string{
+		"/v1/messages", "/v1/completions", "/v1/chat/completions", "/v1/responses", "/v1/responses/compact",
+		"/v1/alpha/search", "/v1/tools/search", "/v1/tools/fetch", "/v1/images/generations", "/v1/images/edits",
+		"/v1/edits", "/v1/embeddings", "/v1/audio/transcriptions", "/v1/audio/translations", "/v1/audio/speech",
+		"/v1/rerank", "/v1/engines/test/embeddings", "/v1/models/test:generateContent", "/v1/moderations",
+		"/v1beta/models/test:generateContent", "/mj/submit/imagine", "/fast/mj/submit/blend", "/v1/tasks/test", "/v1/videos", "/pg/chat/completions",
+	} {
+		t.Run(path, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(compressed.Bytes()))
+			request.Header.Set("Content-Encoding", "gzip")
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("X-Trace", "inbound-route-canary")
+			engine.ServeHTTP(httptest.NewRecorder(), request)
+			require.NotEmpty(t, matched, "must exercise a registered production route")
+			assert.Empty(t, encoding, "decompression has mutated the live header")
+			assert.Contains(t, snapshot, `"content-encoding":["gzip"]`)
+			assert.Contains(t, snapshot, "inbound-route-canary")
+		})
+	}
+	for _, path := range []string{"/v1/responses", "/v1/realtime"} {
+		request := httptest.NewRequest(http.MethodGet, path, nil)
+		request.Header.Set("Upgrade", "websocket")
+		request.Header.Set("Sec-WebSocket-Protocol", "openai-insecure-api-key.")
+		engine.ServeHTTP(httptest.NewRecorder(), request)
+		require.NotEmpty(t, matched)
+		assert.Contains(t, snapshot, `"source":"websocket_handshake"`)
+		assert.NotContains(t, snapshot, "sec-websocket-protocol")
+	}
 }

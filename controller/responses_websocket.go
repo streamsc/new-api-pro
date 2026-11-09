@@ -23,9 +23,10 @@ import (
 type responsesWSRequestContextKey struct{}
 
 type responsesWSRequestState struct {
-	requestID string
-	handle    func(*gin.Context) *types.NewAPIError
-	apiError  *types.NewAPIError
+	requestID      string
+	requestHeaders string
+	handle         func(*gin.Context) *types.NewAPIError
+	apiError       *types.NewAPIError
 }
 
 // Each response.create runs the ordinary request middleware to completion,
@@ -37,6 +38,7 @@ var responsesWSRequestEngine = sync.OnceValue(func() *gin.Engine {
 	engine.POST("/v1/responses", func(c *gin.Context) {
 		state := c.Request.Context().Value(responsesWSRequestContextKey{}).(*responsesWSRequestState)
 		c.Set(common.RequestIdKey, state.requestID)
+		c.Set(model.UsageRequestHeadersKey, state.requestHeaders)
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
 		c.Next()
 	}, middleware.BodyStorageCleanup(), middleware.TokenAuth(), middleware.ModelRequestRateLimit(), func(c *gin.Context) {
@@ -78,13 +80,14 @@ func (w *responsesWSResponseWriter) Write(data []byte) (int, error) {
 func newResponsesWSRequestRunner(c *gin.Context) relay.ResponsesWSRequestRunner {
 	// Capture credentials before channel selection or header overrides. Resolve
 	// the peer once with the public router's trusted-proxy configuration.
+	requestHeaders := c.GetString(model.UsageRequestHeadersKey)
 	headers := c.Request.Header.Clone()
 	for _, name := range []string{"Connection", "Upgrade", "Sec-WebSocket-Key", "Sec-WebSocket-Version", "Sec-WebSocket-Extensions", "Sec-WebSocket-Protocol", "Content-Length", "Content-Encoding"} {
 		headers.Del(name)
 	}
 	remoteAddr := net.JoinHostPort(c.ClientIP(), "0")
 	return func(request *http.Request, requestID string, handle func(*gin.Context) *types.NewAPIError) *types.NewAPIError {
-		state := &responsesWSRequestState{requestID: requestID, handle: handle}
+		state := &responsesWSRequestState{requestID: requestID, requestHeaders: requestHeaders, handle: handle}
 		ctx := context.WithValue(request.Context(), responsesWSRequestContextKey{}, state)
 		ctx = context.WithValue(ctx, common.RequestIdKey, requestID)
 		request = request.Clone(ctx)

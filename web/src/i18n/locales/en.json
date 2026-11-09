@@ -7458,6 +7458,17 @@
     "Extracted": "Extracted",
     "HTTP JSON": "HTTP JSON",
     "Responses WebSocket normalized JSON": "Responses WebSocket normalized JSON",
-    "Admitted sample quota": "Admitted sample quota"
+    "Admitted sample quota": "Admitted sample quota",
+    "Record inbound request headers": "Record inbound request headers",
+    "Save headers after credential filtering in existing usage and error logs, visible only to administrators. This increases log storage.": "Save headers after credential filtering in existing usage and error logs, visible only to administrators. This increases log storage.",
+    "Additional excluded headers": "Additional excluded headers",
+    "Enter up to 32 header names separated by commas. Matching ignores case. Built-in credential exclusions always apply. Custom credentials require explicit exclusion.": "Enter up to 32 header names separated by commas. Matching ignores case. Built-in credential exclusions always apply. Custom credentials require explicit exclusion.",
+    "Inbound request headers": "Inbound request headers",
+    "Copy inbound request headers": "Copy inbound request headers",
+    "Headers from the WebSocket handshake; reused for each request on this connection.": "Headers from the WebSocket handshake; reused for each request on this connection.",
+    "Headers captured before authentication and channel overrides, after credential filtering.": "Headers captured before authentication and channel overrides, after credential filtering.",
+    "Some headers were skipped because of size limits or invalid data. See the skipped counts below.": "Some headers were skipped because of size limits or invalid data. See the skipped counts below.",
+    "Request header recording must be true or false": "Request header recording must be true or false",
+    "Excluded headers must be a JSON array of at most 32 header names": "Excluded headers must be a JSON array of at most 32 header names"
   }
 }

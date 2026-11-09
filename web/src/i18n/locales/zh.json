@@ -7458,6 +7458,17 @@
     "Extracted": "已提取",
     "HTTP JSON": "HTTP JSON",
     "Responses WebSocket normalized JSON": "Responses WebSocket 规范化 JSON",
-    "Admitted sample quota": "已申请采样额度"
+    "Admitted sample quota": "已申请采样额度",
+    "Record inbound request headers": "记录入站请求头",
+    "Save headers after credential filtering in existing usage and error logs, visible only to administrators. This increases log storage.": "在现有消费和错误日志中保存过滤凭据后的请求头，仅管理员可见。这会增加日志存储量。",
+    "Additional excluded headers": "额外排除的请求头",
+    "Enter up to 32 header names separated by commas. Matching ignores case. Built-in credential exclusions always apply. Custom credentials require explicit exclusion.": "输入最多 32 个头名，以逗号分隔，忽略大小写。内置凭据排除始终生效；自定义凭据头需明确添加。",
+    "Inbound request headers": "入站请求头",
+    "Copy inbound request headers": "复制入站请求头",
+    "Headers from the WebSocket handshake; reused for each request on this connection.": "来自 WebSocket 握手的请求头，此连接内的各请求复用。",
+    "Headers captured before authentication and channel overrides, after credential filtering.": "在认证和渠道改写前捕获，并已过滤凭据。",
+    "Some headers were skipped because of size limits or invalid data. See the skipped counts below.": "部分请求头因超限或数据无效被跳过，详见下方跳过计数。",
+    "Request header recording must be true or false": "请求头记录开关必须为 true 或 false",
+    "Excluded headers must be a JSON array of at most 32 header names": "排除请求头必须是最多含 32 个头名的 JSON 数组"
   }
 }

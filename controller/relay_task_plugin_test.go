@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -514,6 +515,10 @@ func openTaskDialectDatabase(t *testing.T, models ...any) (*gorm.DB, common.Data
 }
 
 func TestImmediateTaskSettlementDatabase(t *testing.T) {
+	setting := operation_setting.GetLogSetting()
+	previousSetting := *setting
+	setting.RequestHeadersEnabled = true
+	t.Cleanup(func() { *setting = previousSetting })
 	db, dialect := openTaskDialectDatabase(t, &model.User{}, &model.Channel{}, &model.Task{}, &model.Log{})
 	oldDB, oldLogDB := model.DB, model.LOG_DB
 	oldMain, oldLog := common.MainDatabaseType(), common.LogDatabaseType()
@@ -569,6 +574,7 @@ export function buildQueryRequest(){throw new Error("completed submissions must 
 			require.NoError(t, db.Create(&ch).Error)
 			c := taskSubmissionTestContext()
 			c.Request.Header.Set("User-Agent", "AsyncTaskClient/1")
+			model.CaptureUsageRequestHeaders(c)
 			c.Set("group", "default")
 			c.Set("username", user.Username)
 			c.Set("task_request", map[string]any{"model": "document-model"})
@@ -612,6 +618,8 @@ export function buildQueryRequest(){throw new Error("completed submissions must 
 			var other map[string]any
 			require.NoError(t, common.UnmarshalJsonStr(logs[0].Other, &other))
 			assert.NotContains(t, other, "user_agent")
+			assert.Equal(t, []any{"AsyncTaskClient/1"}, other["admin_info"].(map[string]any)["request_headers"].(map[string]any)["headers"].(map[string]any)["user-agent"])
+			assert.Equal(t, info.PublicTaskID, other["task_id"])
 			storedTask, err := common.Marshal(stored)
 			require.NoError(t, err)
 			assert.NotContains(t, string(storedTask), "AsyncTaskClient/1")

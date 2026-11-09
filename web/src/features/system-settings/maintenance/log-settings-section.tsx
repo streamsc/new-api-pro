@@ -52,6 +52,20 @@ const logSettingsSchema = z.object({
   LogConsumeEnabled: z.boolean(),
   log_setting: z.object({
     user_export_enabled: z.boolean(),
+    request_headers_enabled: z.boolean(),
+    request_headers_excluded: z.string().refine((value) => {
+      const names = value
+        .split(/[,\n]/)
+        .map((name) => name.trim())
+        .filter(Boolean)
+      return (
+        names.length <= 32 &&
+        names.every(
+          (name) =>
+            name.length <= 128 && /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name)
+        )
+      )
+    }, 'Invalid excluded header name'),
     max_range_days: z.number().int().min(1),
   }),
 })
@@ -63,6 +77,8 @@ type LogSettingsSectionProps = {
     LogConsumeEnabled: boolean
     'log_setting.user_export_enabled': boolean
     'log_setting.max_range_days': number
+    'log_setting.request_headers_enabled': boolean
+    'log_setting.request_headers_excluded': string[]
   }
 }
 
@@ -75,6 +91,12 @@ export function LogSettingsSection(props: LogSettingsSectionProps) {
     () => ({
       LogConsumeEnabled: props.defaultValues.LogConsumeEnabled,
       log_setting: {
+        request_headers_enabled:
+          props.defaultValues['log_setting.request_headers_enabled'],
+        request_headers_excluded:
+          props.defaultValues['log_setting.request_headers_excluded'].join(
+            ', '
+          ),
         user_export_enabled:
           props.defaultValues['log_setting.user_export_enabled'],
         max_range_days: props.defaultValues['log_setting.max_range_days'],
@@ -95,13 +117,30 @@ export function LogSettingsSection(props: LogSettingsSectionProps) {
     const changes = [
       ['LogConsumeEnabled', values.LogConsumeEnabled],
       [
+        'log_setting.request_headers_excluded',
+        JSON.stringify(
+          values.log_setting.request_headers_excluded
+            .split(/[,\n]/)
+            .map((name) => name.trim())
+            .filter(Boolean)
+        ),
+      ],
+      [
+        'log_setting.request_headers_enabled',
+        values.log_setting.request_headers_enabled,
+      ],
+      [
         'log_setting.user_export_enabled',
         values.log_setting.user_export_enabled,
       ],
       ['log_setting.max_range_days', values.log_setting.max_range_days],
     ] as const
     for (const [key, value] of changes) {
-      if (value === props.defaultValues[key]) continue
+      const previous =
+        key === 'log_setting.request_headers_excluded'
+          ? JSON.stringify(props.defaultValues[key])
+          : props.defaultValues[key]
+      if (value === previous) continue
       await updateOption.mutateAsync({ key, value })
     }
   }
@@ -144,6 +183,47 @@ export function LogSettingsSection(props: LogSettingsSectionProps) {
                   </FormControl>
                   <FormMessage />
                 </SettingsSwitchItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='log_setting.request_headers_enabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Record inbound request headers')}</FormLabel>
+                    <FormDescription>
+                      {t(
+                        'Save headers after credential filtering in existing usage and error logs, visible only to administrators. This increases log storage.'
+                      )}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </SettingsSwitchItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='log_setting.request_headers_excluded'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Additional excluded headers')}</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Enter up to 32 header names separated by commas. Matching ignores case. Built-in credential exclusions always apply. Custom credentials require explicit exclusion.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
               )}
             />
           </div>

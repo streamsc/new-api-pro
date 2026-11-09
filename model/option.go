@@ -269,6 +269,9 @@ func validateOptionValue(key string, value string) error {
 	if key == operation_setting.LogMaxRangeDaysOptionKey {
 		return operation_setting.ValidateLogMaxRangeDays(value)
 	}
+	if key == operation_setting.LogRequestHeadersEnabledOptionKey || key == operation_setting.LogRequestHeadersExcludedOptionKey {
+		return operation_setting.ValidateRequestHeaderLogOption(key, value)
+	}
 	if key == "MaxTokenAutoGroups" {
 		return setting.ValidateMaxTokenAutoGroups(value)
 	}
