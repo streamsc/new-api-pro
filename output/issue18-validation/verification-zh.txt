@@ -1,0 +1,57 @@
+Issue #18 验证记录（2026-11-08 执行，2026-11-09 复核）
+
+实现
+- 默认关闭，在“系统设置 → 运维 → 日志维护”配置。
+- 在解压、鉴权、渠道改写之前捕获应用解析后的请求头；不读取正文。
+- 内置排除认证、API Key、Cookie、WebSocket 子协议等凭据头；支持最多 32 个自定义排除头名，忽略大小写。
+- 最多 64 个头名；头名最多 128 字节；每头最多 16 个值、合计 1 KiB；完整快照含元数据不超过 8 KiB。
+- 超限或无效字段整项跳过并记录原因计数；保留多值数组、Host，以及重试时不变的原始快照。
+- HTTP、SSE、Responses WebSocket 握手快照复用和插件内部上下文传递已覆盖。
+- 写入已有 other.admin_info.request_headers，管理员详情可查看与复制。
+- 用户列表、用户导出和令牌查询不返回该字段；管理员/root 查询与导出保留。
+- 沿用现有同步逐条 INSERT；批量缓存写入开关不影响该路径。无新增表、字段、索引、队列。
+- 消费日志关闭时仍不写消费日志；任务查询/下载不因本功能新增日志；后续任务结算/退款用 task_id 关联，不保存快照。
+- 快照 INSERT 关闭 SQL 参数输出，驱动错误仅保留错误码，避免 DEBUG SQL 或数据库错误额外打印请求头。
+
+验证命令与结果（附带日志仅清理终端颜色及行尾空白）
+1. go test ./model ./controller ./router ./service ./setting/operation_setting ./middleware ./relay -count=1
+   全部通过。见 backend-final.log。
+2. go test -race ./controller -run 'TestUsageRequestHeaders|TestUsageUserAgentSurvivesUpstreamHeaderOverride|TestResponsesWSRequestRunner|TestResponsesHTTPHealthCountsFinalResult' -count=1
+   通过。见 race-controller-final.log。
+   go test -race ./router ./middleware -count=1
+   通过，包含最终非 POST 插件路由改动。见 race-router-final.log。
+   model 的请求头过滤、限额和配置用例也已通过 -race。
+3. 配置 AUDIT_MYSQL_DSN、AUDIT_POSTGRES_DSN、AUDIT_CLICKHOUSE_DSN 指向隔离的本地测试容器后：
+   go test ./controller -run '^TestUsageRequestHeadersDatabaseMatrix$' -count=1 -v
+   SQLite 3.50.4、MySQL 8.0.46、PostgreSQL 16.15、ClickHouse 25.8.33.6 全部通过。
+   主库与日志库分离；验证消费/错误日志写入、关闭消费日志、任务退款关联，以及列表/导出/令牌接口的权限投影。见 database-matrix-final.log。
+4. web/ 下执行：
+   bun run test src/features/usage-logs/components/__tests__ src/features/system-settings/maintenance/__tests__/log-settings.test.tsx
+   16 个文件、314 项通过。见 frontend.log。
+   bun run test src/features/usage-logs/components/__tests__/request-headers.test.tsx src/features/system-settings/maintenance/__tests__/log-settings.test.tsx
+   格式化后 2 个文件、9 项通过。见 frontend-final.log。
+   bun run typecheck
+   通过。
+   对本次 8 个 TS/TSX 文件执行 oxlint，全部通过；oxfmt 格式化时原样保留版权头。
+5. go build ./... 和 web/ 下的 bun run build 均通过。
+   git diff --check 和变更 Go 文件的 gofmt 检查通过。
+   已验证现有翻译值和受保护署名行未被修改。
+6. Playwright：使用 API fixture，桌面 1440×1000、手机 390×844。
+   确认默认关闭、排除头显示、管理员详情、WebSocket 来源说明、跳过提示、脚本文本安全展示和长值滚动。
+   截图见 output/playwright/issue18/。这部分是页面展示验证，不是实际网关登录验收。
+   临时浏览器、开发服务和数据库容器均已清理。
+
+性能
+命令：go test ./model -run '^$' -bench '^BenchmarkUsageRequestHeaders$' -benchmem -benchtime=500ms
+Apple M4 / darwin arm64：
+- 关闭：90.41 ns/op，336 B/op，2 allocs/op。
+- 常见约 2 KiB：9166 ns/op，15972 B/op，125 allocs/op。
+- 8 KiB 限额场景：25624 ns/op，48248 B/op，176 allocs/op。
+详见 benchmark.log。这些数字仅测量采集，不包含数据库 INSERT 延迟，不代表生产吞吐或延迟。
+开启会增加每条日志的存储字节和数据库 I/O，写入次数保持原有行为；请求数不等于日志数，重试日志可能重复保存同一快照。
+
+限制
+- 不自动识别任意自定义凭据头；管理员需配置额外排除项。
+- 接受原有消费日志关闭、鉴权失败、早期拒绝等日志覆盖边界。
+- 不承诺还原原始 HTTP 字节顺序；不记录正文、响应头、上游发出头，不补填历史日志。
+- 未部署生产，未测量生产数据库性能，未声称完成完整 ASVS 审计。

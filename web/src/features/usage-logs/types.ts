@@ -116,6 +116,12 @@ export interface ToolSurchargeItem {
 
 export interface LogOtherData {
   admin_info?: {
+    request_headers?: {
+      source: 'http' | 'websocket_handshake'
+      headers: Record<string, string[]>
+      incomplete: boolean
+      skipped: Record<string, number>
+    }
     request_policy?: PolicyEvent[]
     is_multi_key?: boolean
     multi_key_index?: number

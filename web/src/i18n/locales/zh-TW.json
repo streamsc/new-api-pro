@@ -7458,6 +7458,17 @@
     "Extracted": "已擷取",
     "HTTP JSON": "HTTP JSON",
     "Responses WebSocket normalized JSON": "Responses WebSocket 標準化 JSON",
-    "Admitted sample quota": "已准入樣本額度"
+    "Admitted sample quota": "已准入樣本額度",
+    "Record inbound request headers": "記錄入站請求標頭",
+    "Save headers after credential filtering in existing usage and error logs, visible only to administrators. This increases log storage.": "在現有用量和錯誤日誌中儲存過濾憑證後的請求標頭，僅管理員可見。這會增加日誌儲存量。",
+    "Additional excluded headers": "額外排除的請求標頭",
+    "Enter up to 32 header names separated by commas. Matching ignores case. Built-in credential exclusions always apply. Custom credentials require explicit exclusion.": "輸入最多 32 個標頭名稱，以逗號分隔，不區分大小寫。內建憑證排除始終生效；自訂憑證標頭需明確新增。",
+    "Inbound request headers": "入站請求標頭",
+    "Copy inbound request headers": "複製入站請求標頭",
+    "Headers from the WebSocket handshake; reused for each request on this connection.": "來自 WebSocket 握手的請求標頭，此連線內的各請求重複使用。",
+    "Headers captured before authentication and channel overrides, after credential filtering.": "在驗證和渠道改寫前擷取，並已過濾憑證。",
+    "Some headers were skipped because of size limits or invalid data. See the skipped counts below.": "部分請求標頭因超出限制或資料無效而略過，詳見下方略過計數。",
+    "Request header recording must be true or false": "請求標頭記錄開關必須為 true 或 false",
+    "Excluded headers must be a JSON array of at most 32 header names": "排除請求標頭必須是最多含 32 個名稱的 JSON 陣列"
   }
 }

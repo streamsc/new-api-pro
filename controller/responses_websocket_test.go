@@ -27,6 +27,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
@@ -109,6 +110,7 @@ func newResponsesWSTestRunner(t *testing.T, token *model.Token) (relay.Responses
 	t.Helper()
 	var runner relay.ResponsesWSRequestRunner
 	engine := gin.New()
+	engine.Use(middleware.CaptureUsageRequestHeaders())
 	require.NoError(t, engine.SetTrustedProxies([]string{"127.0.0.1"}))
 	engine.GET("/v1/responses", middleware.TokenAuth(), func(c *gin.Context) {
 		runner = newResponsesWSRequestRunner(c)
@@ -134,6 +136,10 @@ func newResponsesWSTestRunner(t *testing.T, token *model.Token) (relay.Responses
 }
 
 func TestResponsesWSRequestRunnerRefreshesBillingContextAndCleansBody(t *testing.T) {
+	setting := operation_setting.GetLogSetting()
+	previousSetting := *setting
+	setting.RequestHeadersEnabled = true
+	t.Cleanup(func() { *setting = previousSetting })
 	user, token := setupResponsesWSRequestTest(t)
 	allowedIP := "203.0.113.8"
 	require.NoError(t, model.DB.Model(token).Update("allow_ips", allowedIP).Error)
@@ -153,6 +159,12 @@ func TestResponsesWSRequestRunnerRefreshesBillingContextAndCleansBody(t *testing
 			assert.Empty(t, c.GetHeader(header))
 		}
 		assert.Equal(t, "preserved", c.GetHeader("X-Application-Header"))
+		snapshot := c.GetString(model.UsageRequestHeadersKey)
+		assert.Contains(t, snapshot, `"source":"websocket_handshake"`)
+		assert.Contains(t, snapshot, `"content-encoding":["gzip"]`)
+		assert.Contains(t, snapshot, `"x-forwarded-for":["203.0.113.8"]`)
+		assert.NotContains(t, snapshot, "secret")
+		assert.NotContains(t, snapshot, "sec-websocket-protocol")
 		c.Set("previous_turn", true)
 		var err error
 		storage, err = common.GetBodyStorage(c)
@@ -407,6 +419,7 @@ func newResponsesWSBillingTest(t *testing.T, expression string, handle func(*web
 		require.NoError(t, model.DB.Delete(channel).Error)
 	})
 	engine := gin.New()
+	engine.Use(middleware.CaptureUsageRequestHeaders())
 	engine.GET("/v1/responses", middleware.TokenAuth(), func(c *gin.Context) {
 		defer close(fixture.done)
 		c.Set(common.RequestIdKey, "responses-ws-billing")
@@ -1033,6 +1046,13 @@ func TestResponsesStreamOutcomesPreserveAccounting(t *testing.T) {
 }
 
 func TestResponsesHTTPHealthCountsFinalResult(t *testing.T) {
+	logSetting := operation_setting.GetLogSetting()
+	previousSetting := *logSetting
+	logSetting.RequestHeadersEnabled = true
+	t.Cleanup(func() { *logSetting = previousSetting })
+	previousErrorLog := constant.ErrorLogEnabled
+	constant.ErrorLogEnabled = true
+	t.Cleanup(func() { constant.ErrorLogEnabled = previousErrorLog })
 	for _, tc := range []struct {
 		name, code            string
 		firstStatus, attempts int
@@ -1050,6 +1070,7 @@ func TestResponsesHTTPHealthCountsFinalResult(t *testing.T) {
 			t.Cleanup(func() { common.RetryTimes = oldRetries })
 			var attempts atomic.Int64
 			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "RetryUpstream/1", r.UserAgent())
 				w.Header().Set("Content-Type", "application/json")
 				if attempts.Add(1) == 1 {
 					w.WriteHeader(tc.firstStatus)
@@ -1060,10 +1081,12 @@ func TestResponsesHTTPHealthCountsFinalResult(t *testing.T) {
 			}))
 			t.Cleanup(upstream.Close)
 			require.NoError(t, model.DB.Model(&model.Channel{}).Where("name = ?", "responses-ws-upstream").Update("base_url", upstream.URL).Error)
+			require.NoError(t, model.DB.Model(fixture.channel).Update("header_override", `{"User-Agent":"RetryUpstream/1"}`).Error)
 			request, err := http.NewRequest(http.MethodPost, fixture.gatewayURL+"/v1/responses", strings.NewReader(`{"model":"ws-billing","input":"hello"}`))
 			require.NoError(t, err)
 			request.Header.Set("Authorization", "Bearer sk-"+fixture.token.Key)
 			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("User-Agent", "RetryClient/1")
 			response, err := http.DefaultClient.Do(request)
 			require.NoError(t, err)
 			_, err = io.Copy(io.Discard, response.Body)
@@ -1083,6 +1106,16 @@ func TestResponsesHTTPHealthCountsFinalResult(t *testing.T) {
 
 			fixture.closeAndWait(t)
 			assert.Equal(t, int64(tc.attempts), attempts.Load())
+			var logs []model.Log
+			require.NoError(t, model.LOG_DB.Where("token_id = ?", fixture.token.Id).Find(&logs).Error)
+			require.NotEmpty(t, logs)
+			for _, log := range logs {
+				other, err := common.StrToMap(log.Other)
+				require.NoError(t, err)
+				headers := other["admin_info"].(map[string]any)["request_headers"].(map[string]any)["headers"].(map[string]any)
+				assert.Equal(t, []any{"RetryClient/1"}, headers["user-agent"])
+				assert.NotContains(t, headers, "authorization")
+			}
 			if !tc.success {
 				assert.Equal(t, tc.firstStatus, response.StatusCode)
 			} else {

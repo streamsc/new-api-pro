@@ -1,0 +1,9 @@
+$ vitest run src/features/usage-logs/components/__tests__/request-headers.test.tsx src/features/system-settings/maintenance/__tests__/log-settings.test.tsx
+
+ RUN  v5.0.4 /Users/shence/code/aicode/new-api-workspace/new-api-pro/web
+
+
+ Test Files  2 passed (2)
+      Tests  9 passed (9)
+   Start at  16:12:46
+   Duration  6.07s (import 56%, environment 26%, transform 7%, setup 6%, tests 5%)

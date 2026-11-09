@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/gin-gonic/gin"
 )
@@ -25,11 +26,12 @@ import (
 type pluginDispatchStateKey struct{}
 
 type pluginDispatchState struct {
-	generation *jsplugin.RoutingGeneration
-	hit        atomic.Bool
-	writer     *gatedResponseWriter
-	requestID  string
-	language   string
+	generation     *jsplugin.RoutingGeneration
+	hit            atomic.Bool
+	writer         *gatedResponseWriter
+	requestID      string
+	requestHeaders string
+	language       string
 }
 
 func (s *pluginDispatchState) markHit() {
@@ -306,6 +308,7 @@ func importPluginDispatchState() gin.HandlerFunc {
 			if c.FullPath() != "" {
 				state.markHit()
 			}
+			c.Set(model.UsageRequestHeadersKey, state.requestHeaders)
 			if state.requestID != "" {
 				c.Set(common.RequestIdKey, state.requestID)
 			}
@@ -368,9 +371,10 @@ func (d *pluginRouteDispatcher) dispatch(c *gin.Context) {
 	c.Set(middleware.RouteTagKey, "relay")
 	originalContext := c.Request.Context()
 	state := &pluginDispatchState{
-		generation: generation,
-		requestID:  c.GetString(common.RequestIdKey),
-		language:   c.GetString(string(constant.ContextKeyLanguage)),
+		generation:     generation,
+		requestID:      c.GetString(common.RequestIdKey),
+		requestHeaders: c.GetString(model.UsageRequestHeadersKey),
+		language:       c.GetString(string(constant.ContextKeyLanguage)),
 	}
 	gatedWriter := newGatedResponseWriter(c.Writer)
 	state.writer = gatedWriter

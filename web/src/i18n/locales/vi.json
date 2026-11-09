@@ -7458,6 +7458,17 @@
     "Extracted": "Đã trích xuất",
     "HTTP JSON": "JSON HTTP",
     "Responses WebSocket normalized JSON": "JSON chuẩn hóa của Responses WebSocket",
-    "Admitted sample quota": "Hạn mức mẫu đã tiếp nhận"
+    "Admitted sample quota": "Hạn mức mẫu đã tiếp nhận",
+    "Record inbound request headers": "Ghi tiêu đề yêu cầu đầu vào",
+    "Save headers after credential filtering in existing usage and error logs, visible only to administrators. This increases log storage.": "Lưu tiêu đề sau khi lọc thông tin xác thực trong nhật ký sử dụng và lỗi hiện có, chỉ quản trị viên được xem. Việc này tăng dung lượng lưu trữ.",
+    "Additional excluded headers": "Tiêu đề loại trừ bổ sung",
+    "Enter up to 32 header names separated by commas. Matching ignores case. Built-in credential exclusions always apply. Custom credentials require explicit exclusion.": "Nhập tối đa 32 tên tiêu đề, phân cách bằng dấu phẩy, không phân biệt hoa thường. Luôn áp dụng danh sách loại trừ tích hợp. Phải chỉ định rõ tiêu đề xác thực tùy chỉnh.",
+    "Inbound request headers": "Tiêu đề yêu cầu đầu vào",
+    "Copy inbound request headers": "Sao chép tiêu đề yêu cầu đầu vào",
+    "Headers from the WebSocket handshake; reused for each request on this connection.": "Tiêu đề từ bước bắt tay WebSocket, dùng lại cho mỗi yêu cầu trên kết nối này.",
+    "Headers captured before authentication and channel overrides, after credential filtering.": "Tiêu đề được thu thập trước xác thực và ghi đè kênh, sau khi lọc thông tin xác thực.",
+    "Some headers were skipped because of size limits or invalid data. See the skipped counts below.": "Một số tiêu đề bị bỏ qua do giới hạn kích thước hoặc dữ liệu không hợp lệ. Xem số lượng bên dưới.",
+    "Request header recording must be true or false": "Giá trị ghi tiêu đề phải là true hoặc false",
+    "Excluded headers must be a JSON array of at most 32 header names": "Danh sách loại trừ phải là mảng JSON gồm tối đa 32 tên"
   }
 }

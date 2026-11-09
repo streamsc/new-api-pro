@@ -1,0 +1,21 @@
+[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ - using env:	export GIN_MODE=release
+ - using code:	gin.SetMode(gin.ReleaseMode)
+
+goos: darwin
+goarch: arm64
+pkg: github.com/QuantumNous/new-api/model
+cpu: Apple M4
+BenchmarkUsageRequestHeaders/disabled-10         	 6396937	        90.41 ns/op	     336 B/op	       2 allocs/op
+[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ - using env:	export GIN_MODE=release
+ - using code:	gin.SetMode(gin.ReleaseMode)
+
+BenchmarkUsageRequestHeaders/typical_2KiB-10     	   66745	      9166 ns/op	   15972 B/op	     125 allocs/op
+[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ - using env:	export GIN_MODE=release
+ - using code:	gin.SetMode(gin.ReleaseMode)
+
+BenchmarkUsageRequestHeaders/bounded_8KiB-10     	   22581	     25624 ns/op	   48248 B/op	     176 allocs/op
+PASS
+ok  	github.com/QuantumNous/new-api/model	2.868s

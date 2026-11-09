@@ -7458,6 +7458,17 @@
     "Extracted": "抽出済み",
     "HTTP JSON": "HTTP JSON",
     "Responses WebSocket normalized JSON": "Responses WebSocket 正規化 JSON",
-    "Admitted sample quota": "受付済みサンプルの割当量"
+    "Admitted sample quota": "受付済みサンプルの割当量",
+    "Record inbound request headers": "受信リクエストヘッダーを記録",
+    "Save headers after credential filtering in existing usage and error logs, visible only to administrators. This increases log storage.": "認証情報を除外したヘッダーを既存の使用量・エラーログに保存します。管理者のみ閲覧でき、ログの保存容量が増加します。",
+    "Additional excluded headers": "追加で除外するヘッダー",
+    "Enter up to 32 header names separated by commas. Matching ignores case. Built-in credential exclusions always apply. Custom credentials require explicit exclusion.": "ヘッダー名をカンマ区切りで最大32個入力します。大文字と小文字は区別しません。標準の認証情報の除外は常に有効です。独自の認証ヘッダーは明示的に指定してください。",
+    "Inbound request headers": "受信リクエストヘッダー",
+    "Copy inbound request headers": "受信リクエストヘッダーをコピー",
+    "Headers from the WebSocket handshake; reused for each request on this connection.": "WebSocketハンドシェイク時のヘッダーです。この接続の各リクエストで再利用されます。",
+    "Headers captured before authentication and channel overrides, after credential filtering.": "認証とチャネルによる書き換え前に取得し、認証情報を除外したヘッダーです。",
+    "Some headers were skipped because of size limits or invalid data. See the skipped counts below.": "サイズ制限または無効なデータのため、一部のヘッダーを省略しました。下の省略件数を確認してください。",
+    "Request header recording must be true or false": "記録設定はtrueまたはfalseにしてください",
+    "Excluded headers must be a JSON array of at most 32 header names": "除外ヘッダーは最大32個の名前のJSON配列にしてください"
   }
 }

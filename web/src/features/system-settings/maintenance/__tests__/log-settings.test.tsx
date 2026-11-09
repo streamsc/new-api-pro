@@ -44,6 +44,8 @@ function Fixture() {
             LogConsumeEnabled: true,
             'log_setting.user_export_enabled': true,
             'log_setting.max_range_days': 30,
+            'log_setting.request_headers_enabled': false,
+            'log_setting.request_headers_excluded': [],
           }}
         />
       </SettingsPageProvider>
@@ -90,7 +92,7 @@ test('the page shows the four log modules in order, each with its own controls',
     'Server Log Management',
   ])
   const recording = screen.getByRole('group', { name: 'Log recording' })
-  expect(within(recording).getAllByRole('switch')).toHaveLength(1)
+  expect(within(recording).getAllByRole('switch')).toHaveLength(2)
   expect(
     within(recording).getByRole('switch', { name: 'Record quota usage' })
   ).toBeVisible()
@@ -180,5 +182,40 @@ test('a time range under one day shows a field error and is not saved', async ()
   await user.click(screen.getByRole('button', { name: 'Save log settings' }))
 
   await waitFor(() => expect(days).toHaveAttribute('aria-invalid', 'true'))
+  expect(api.put).not.toHaveBeenCalled()
+})
+
+test('header recording starts disabled and saves custom exclusions before enabling', async () => {
+  const user = userEvent.setup()
+  await renderSettings()
+  const toggle = screen.getByRole('switch', {
+    name: 'Record inbound request headers',
+  })
+  expect(toggle).toHaveAttribute('aria-checked', 'false')
+  await user.type(
+    screen.getByRole('textbox', { name: 'Additional excluded headers' }),
+    'X-Company-Secret, Host'
+  )
+  await user.click(toggle)
+  await user.click(screen.getByRole('button', { name: 'Save log settings' }))
+  await waitFor(() => expect(api.put).toHaveBeenCalledTimes(2))
+  expect(vi.mocked(api.put).mock.calls.map((call) => call[1])).toEqual([
+    {
+      key: 'log_setting.request_headers_excluded',
+      value: '["X-Company-Secret","Host"]',
+    },
+    { key: 'log_setting.request_headers_enabled', value: true },
+  ])
+})
+
+test('invalid custom header names show an error and prevent saving', async () => {
+  const user = userEvent.setup()
+  await renderSettings()
+  const excluded = screen.getByRole('textbox', {
+    name: 'Additional excluded headers',
+  })
+  await user.type(excluded, 'bad name')
+  await user.click(screen.getByRole('button', { name: 'Save log settings' }))
+  await waitFor(() => expect(excluded).toHaveAttribute('aria-invalid', 'true'))
   expect(api.put).not.toHaveBeenCalled()
 })

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 )
 
@@ -13,6 +14,16 @@ const RouteTagKey = "route_tag"
 func RouteTag(tag string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Set(RouteTagKey, tag)
+		c.Next()
+	}
+}
+
+// CaptureUsageRequestHeaders runs before request mutations, including native
+// plugin routes that can submit with methods other than POST. Only existing
+// consume/error log writes persist the snapshot; this never creates a log.
+func CaptureUsageRequestHeaders() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		model.CaptureUsageRequestHeaders(c)
 		c.Next()
 	}
 }

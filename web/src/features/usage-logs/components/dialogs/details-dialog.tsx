@@ -1283,6 +1283,45 @@ export function DetailsDialog(props: DetailsDialogProps) {
           </DetailSection>
         )}
 
+        {props.isAdmin && other?.admin_info?.request_headers && (
+          <DetailSection label={t('Inbound request headers')}>
+            <div className='flex min-w-0 items-center justify-between gap-2'>
+              <p className='text-muted-foreground text-xs'>
+                {other.admin_info.request_headers.source ===
+                'websocket_handshake'
+                  ? t(
+                      'Headers from the WebSocket handshake; reused for each request on this connection.'
+                    )
+                  : t(
+                      'Headers captured before authentication and channel overrides, after credential filtering.'
+                    )}
+              </p>
+              <CopyButton
+                value={JSON.stringify(
+                  other.admin_info.request_headers,
+                  null,
+                  2
+                )}
+                aria-label={t('Copy inbound request headers')}
+                className='size-6'
+              />
+            </div>
+            {other.admin_info.request_headers.incomplete && (
+              <p className='text-destructive text-xs' role='status'>
+                {t(
+                  'Some headers were skipped because of size limits or invalid data. See the skipped counts below.'
+                )}
+              </p>
+            )}
+            <pre
+              aria-label={t('Inbound request headers')}
+              className='max-h-64 overflow-auto rounded border p-2 font-mono text-xs break-all whitespace-pre-wrap'
+            >
+              {JSON.stringify(other.admin_info.request_headers, null, 2)}
+            </pre>
+          </DetailSection>
+        )}
+
         {/* Subscription billing details */}
         {isSubscription && other && (
           <DetailSection label={t('Subscription Billing')}>
