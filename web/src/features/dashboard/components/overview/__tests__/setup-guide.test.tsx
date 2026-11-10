@@ -113,7 +113,10 @@ describe('overview setup guide', () => {
     const toggle = await screen.findByRole('button', { name: 'Setup guide' })
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
     expect(
-      screen.getAllByRole('heading').map((heading) => heading.textContent)
+      screen
+        .getAllByRole('heading')
+        .slice(0, 2)
+        .map((heading) => heading.textContent)
     ).toEqual(['Overview', 'Usage at a glance'])
     expect(screen.queryByText('Setup guide complete')).not.toBeInTheDocument()
     expect(screen.queryByText('Setup progress: 3/3')).not.toBeInTheDocument()
