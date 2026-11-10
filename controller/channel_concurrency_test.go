@@ -154,7 +154,7 @@ func TestUserResourceSelfReadIgnoresRequestedIdentity(t *testing.T) {
 	previousMap := common.OptionMap
 	common.OptionMap = map[string]string{}
 	defer func() { common.OptionMap = previousMap }()
-	release, rejected, err := service.AcquireUserResources(context.Background(), user.Id, 19, setting.UserResourceLimits{})
+	release, rejected, err := service.AcquireUserResources(context.Background(), user.Id, 19, service.UserResourceAdmission{})
 	require.NoError(t, err)
 	require.Nil(t, rejected)
 	defer release()
@@ -224,7 +224,7 @@ func TestUserResourceMetricsUnavailableUsage(t *testing.T) {
 	previousMap := common.OptionMap
 	common.OptionMap = map[string]string{}
 	defer func() { common.OptionMap = previousMap }()
-	release, rejection, err := service.AcquireUserResources(context.Background(), user.Id, 23, setting.UserResourceLimits{})
+	release, rejection, err := service.AcquireUserResources(context.Background(), user.Id, 23, service.UserResourceAdmission{})
 	require.NoError(t, err)
 	require.Nil(t, rejection)
 	defer release()

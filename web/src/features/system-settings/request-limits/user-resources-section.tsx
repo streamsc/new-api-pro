@@ -61,18 +61,22 @@ type FormValues = z.infer<typeof formSchema>
 export function UserResourcesSection() {
   const { t } = useTranslation()
   const [editMode, setEditMode] = useState('visual')
+  const [version, setVersion] = useState('')
   const client = useQueryClient()
   const query = useQuery({
     queryKey: ['user-resources-config'],
-    queryFn: async () =>
-      requireServerSuccess(
+    queryFn: async () => {
+      const response = requireServerSuccess(
         (
           await api.get<{
             success: boolean
+            version: string
             data: z.infer<typeof userResourcesConfigSchema>
           }>('/api/option/user_resources')
         ).data
-      ).data,
+      )
+      return { config: response.data, version: response.version }
+    },
   })
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -81,8 +85,12 @@ export function UserResourcesSection() {
   useEffect(() => {
     if (query.data) {
       if (!form.formState.isDirty) {
-        form.reset({ config: JSON.stringify(query.data, null, 2), reason: '' })
-        if (!userResourcesConfigSchema.safeParse(query.data).success) {
+        form.reset({
+          config: JSON.stringify(query.data.config, null, 2),
+          reason: '',
+        })
+        setVersion(query.data.version)
+        if (!userResourcesConfigSchema.safeParse(query.data.config).success) {
           setEditMode('json')
         }
       }
@@ -93,13 +101,15 @@ export function UserResourcesSection() {
       requireServerSuccess(
         (
           await api.put('/api/option/user_resources', {
+            expected_version: version,
             config: JSON.parse(values.config),
             reason: values.reason,
           })
         ).data
       ),
-    onSuccess: async (_data, values) => {
+    onSuccess: async (data, values) => {
       form.reset({ config: values.config, reason: '' })
+      setVersion(data.version)
       await client.invalidateQueries({ queryKey: ['user-resources-config'] })
       await client.invalidateQueries({ queryKey: ['self-resources'] })
     },

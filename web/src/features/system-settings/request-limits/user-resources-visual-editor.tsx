@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useTranslation } from 'react-i18next'
 
 import { ResourceLimitFields } from './user-resources-limit-fields'
+import { UserResourcesModelEditor } from './user-resources-model-editor'
 import { UserResourcesOverridesTable } from './user-resources-overrides-table'
 import type { UserResourcesConfig } from './user-resources-schema'
 
@@ -48,6 +49,10 @@ export function UserResourcesVisualEditor(props: {
           )}
         </p>
       </fieldset>
+      <UserResourcesModelEditor
+        config={props.config}
+        onChange={props.onChange}
+      />
       <UserResourcesOverridesTable
         config={props.config}
         onChange={props.onChange}

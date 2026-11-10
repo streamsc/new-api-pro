@@ -94,3 +94,7 @@ resources.store_unavailable: "User resource store unavailable"
 resources.user_concurrency_exceeded: "User concurrency limit exceeded"
 resources.user_input_tpm_exceeded: "Estimated input TPM limit exceeded"
 resources.user_rpm_exceeded: "User RPM limit exceeded"
+
+resources.user_model_concurrency_exceeded: "User model concurrency limit exceeded"
+resources.user_model_input_tpm_exceeded: "User model estimated input TPM limit exceeded"
+resources.user_model_rpm_exceeded: "User model RPM limit exceeded"

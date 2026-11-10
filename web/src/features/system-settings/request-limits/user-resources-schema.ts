@@ -31,8 +31,41 @@ const limitsSchema = z
     rpm: limitSchema,
   })
   .strict()
+export const unlimitedResourceLimits = {
+  concurrency: { enabled: false, limit: 0 },
+  input_tpm: { enabled: false, limit: 0 },
+  rpm: { enabled: false, limit: 0 },
+}
+const modelRuleSchema = z
+  .object({
+    defaults: limitsSchema.default(unlimitedResourceLimits),
+    users: z
+      .record(z.string().regex(/^[1-9]\d*$/), limitsSchema.partial())
+      .default({}),
+  })
+  .strict()
+const exactModelSchema = z
+  .string()
+  .min(1)
+  .refine(
+    (name) =>
+      new TextEncoder().encode(name).length <= 512 &&
+      name.trim() === name &&
+      !/\p{Cc}/u.test(name)
+  )
 export const userResourcesConfigSchema = z
   .object({
+    // Zod records skip __proto__; a Map validates every exact model name.
+    models: z
+      .preprocess(
+        (value) =>
+          value && typeof value === 'object' && !Array.isArray(value)
+            ? new Map(Object.entries(value))
+            : value,
+        z.map(exactModelSchema, modelRuleSchema)
+      )
+      .transform((models) => Object.fromEntries(models))
+      .optional(),
     defaults: limitsSchema,
     users: z.record(z.string().regex(/^[1-9]\d*$/), limitsSchema.partial()),
   })

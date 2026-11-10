@@ -1505,3 +1505,64 @@ func TestResponsesWebSocketPreRoutingRejectionsFollowHealthClassification(t *tes
 		})
 	}
 }
+
+// Both entry points must charge the exact client model once, before mapping.
+func TestUserModelResourcesSharedByHTTPAndResponsesWebSocket(t *testing.T) {
+	completed := `{"type":"response.completed","response":{"id":"model-limit","status":"completed","usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}`
+	fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
+		_, request, err := ws.ReadMessage()
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.Contains(t, string(request), `"model":"gpt-4o"`)
+		if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(completed))) {
+			return
+		}
+		_, _, _ = ws.ReadMessage()
+	}, completed)
+	previous := common.OptionMap
+	common.OptionMap = map[string]string{setting.UserResourcesOption: `{"defaults":{"rpm":{"enabled":true,"limit":5}},"models":{"ws-billing":{"defaults":{"rpm":{"enabled":true,"limit":2}}},"gpt-4o":{"defaults":{"rpm":{"enabled":true,"limit":0}}}}}`}
+	defer func() { common.OptionMap = previous }()
+	ctx := context.Background()
+	initial, err := service.GetUserResourceUsage(ctx, fixture.user.Id)
+	require.NoError(t, err)
+	require.Zero(t, initial.Concurrency, "idle WebSocket must not acquire resources")
+	require.Zero(t, initial.RPM)
+	request, err := http.NewRequest(http.MethodPost, fixture.gatewayURL+"/v1/responses", strings.NewReader(`{"model":"ws-billing","input":"hello","stream":true}`))
+	require.NoError(t, err)
+	request.Header.Set("Authorization", "Bearer sk-"+fixture.token.Key)
+	request.Header.Set("Content-Type", "application/json")
+	response, err := (&http.Client{Timeout: 3 * time.Second}).Do(request)
+	require.NoError(t, err)
+	body, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+	require.NoError(t, response.Body.Close())
+	require.Equal(t, http.StatusOK, response.StatusCode, string(body))
+	require.Contains(t, string(body), "response.completed")
+	select {
+	case <-fixture.httpDone:
+	case <-time.After(3 * time.Second):
+		t.Fatal("HTTP relay did not finish")
+	}
+	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"hello"}`)))
+	require.Equal(t, "response.completed", readResponsesWSTestEvent(t, fixture.client)["type"])
+	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"blocked","event_id":"quota-check"}`)))
+	denied := readResponsesWSTestEvent(t, fixture.client)
+	require.Equal(t, float64(http.StatusTooManyRequests), denied["status"])
+	require.Equal(t, "quota-check", denied["event_id"])
+	require.Equal(t, "user_model_rpm_exceeded", denied["error"].(map[string]any)["code"])
+	config, err := setting.CurrentUserResourcesConfig()
+	require.NoError(t, err)
+	rows, total, complete := service.GetUserModelResourcePage(ctx, config, fixture.user.Id, "ws-billing", 1, 20)
+	require.True(t, complete)
+	require.Equal(t, 1, total)
+	require.Len(t, rows, 1)
+	require.True(t, rows[0].Available)
+	require.Equal(t, 2, rows[0].Usage.RPM, "HTTP and WS each consume one model admission")
+	require.Zero(t, rows[0].Usage.Concurrency, "completion releases model slots while retaining the window")
+	usage, err := service.GetUserResourceUsage(ctx, fixture.user.Id)
+	require.NoError(t, err)
+	require.Equal(t, 2, usage.RPM, "rejection must consume neither bucket")
+	require.Zero(t, usage.Concurrency)
+	fixture.closeAndWait(t)
+}

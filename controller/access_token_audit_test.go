@@ -22,6 +22,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -1226,7 +1227,8 @@ func TestUserResourceLimitsRequireRootAndAuditBeforeAfter(t *testing.T) {
 	engine := gin.New()
 	engine.Use(middleware.RequestId())
 	engine.PUT("/api/option/user_resources", middleware.RootAuth(), UpdateUserResourcesConfig)
-	body := `{"config":{"defaults":{"rpm":{"enabled":true,"limit":10}},"users":{}},"reason":"capacity review"}`
+	emptyConfig, _ := setting.ParseUserResourcesConfig("")
+	body := `{"expected_version":"` + setting.UserResourcesVersion(emptyConfig) + `","config":{"defaults":{"rpm":{"enabled":true,"limit":10}},"users":{}},"reason":"capacity review"}`
 	response := accessTokenRequest(engine, http.MethodPut, "/api/option/user_resources", credential, "", body)
 	require.Equal(t, http.StatusForbidden, response.Code, "ordinary admin cannot change root options")
 	require.NoError(t, model.DB.Model(user).Update("role", common.RoleRootUser).Error)
@@ -1273,6 +1275,9 @@ func TestUserResourceEndpointsEnforceAccessTokenScopes(t *testing.T) {
 	}{
 		{"self read", "GET", "/api/user/self/resources?user_id=999999", "profile:read", common.RoleCommonUser, http.StatusOK},
 		{"self missing scope", "GET", "/api/user/self/resources", "usage:read", common.RoleCommonUser, http.StatusForbidden},
+		{"admin inventory", "GET", "/api/user/resources", "user:read", common.RoleAdminUser, http.StatusOK},
+		{"inventory missing scope", "GET", "/api/user/resources", "profile:read", common.RoleAdminUser, http.StatusForbidden},
+		{"ordinary user cannot read inventory", "GET", "/api/user/resources", "user:read", common.RoleCommonUser, http.StatusForbidden},
 		{"root config read", "GET", "/api/option/user_resources", "option:read", common.RoleRootUser, http.StatusOK},
 		{"root config missing scope", "GET", "/api/option/user_resources", "profile:read", common.RoleRootUser, http.StatusForbidden},
 		{"read cannot write", "PUT", "/api/option/user_resources", "option:read", common.RoleRootUser, http.StatusForbidden},
@@ -1290,9 +1295,11 @@ func TestUserResourceEndpointsEnforceAccessTokenScopes(t *testing.T) {
 			engine := gin.New()
 			engine.Use(middleware.RequestId())
 			engine.GET("/api/user/self/resources", middleware.UserAuth(), GetSelfResources)
+			engine.GET("/api/user/resources", middleware.AdminAuth(), GetAdminResources)
 			engine.GET("/api/option/user_resources", middleware.RootAuth(), GetUserResourcesConfig)
 			engine.PUT("/api/option/user_resources", middleware.RootAuth(), UpdateUserResourcesConfig)
-			response := accessTokenRequest(engine, tc.method, tc.path, credential, "", `{"config":{"defaults":{"rpm":{"enabled":true,"limit":10}},"users":{}},"reason":"scoped capacity review"}`)
+			emptyConfig, _ := setting.ParseUserResourcesConfig("")
+			response := accessTokenRequest(engine, tc.method, tc.path, credential, "", `{"expected_version":"`+setting.UserResourcesVersion(emptyConfig)+`","config":{"defaults":{"rpm":{"enabled":true,"limit":10}},"users":{}},"reason":"scoped capacity review"}`)
 			require.Equal(t, tc.want, response.Code, response.Body.String())
 			if tc.want == http.StatusOK {
 				require.Contains(t, response.Body.String(), `"success":true`)
@@ -1308,4 +1315,42 @@ func TestUserResourceEndpointsEnforceAccessTokenScopes(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUserModelSelfInventoryKeepsIdentityAndUnavailableLimits(t *testing.T) {
+	user, _ := setupAccessTokenAudit(t)
+	_, credential := createAccessTokenTestSession(t, user.Id, "model-resources-self")
+	previous, previousRedis, previousClient := common.OptionMap, common.RedisEnabled, common.RDB
+	common.OptionMap = map[string]string{setting.UserResourcesOption: fmt.Sprintf(`{"models":{"A":{"defaults":{"rpm":{"enabled":true,"limit":7}},"users":{"%d":{"rpm":{"enabled":false,"limit":0}},"999999":{"rpm":{"enabled":true,"limit":1}}}}}}`, user.Id)}
+	defer func() { common.OptionMap, common.RedisEnabled, common.RDB = previous, previousRedis, previousClient }()
+
+	engine := gin.New()
+	engine.GET("/api/user/self/resources", middleware.UserAuth(), func(c *gin.Context) {
+		common.RedisEnabled, common.RDB = true, nil
+		GetSelfResources(c)
+	})
+	response := accessTokenRequest(engine, http.MethodGet, "/api/user/self/resources?user_id=999999&model=A&page_size=1", credential, "", "")
+	require.Equal(t, http.StatusOK, response.Code)
+	var body struct {
+		Data struct {
+			UserID         int `json:"user_id"`
+			Available      bool
+			Models         []service.UserModelResourceRow
+			ModelsTotal    int  `json:"models_total"`
+			ModelsComplete bool `json:"models_complete"`
+		}
+	}
+	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
+	require.Equal(t, user.Id, body.Data.UserID)
+	require.False(t, body.Data.Available)
+	require.False(t, body.Data.ModelsComplete)
+	require.Equal(t, 1, body.Data.ModelsTotal)
+	require.Len(t, body.Data.Models, 1)
+	row := body.Data.Models[0]
+	require.Equal(t, user.Id, row.UserID)
+	require.Equal(t, "A", row.Model)
+	require.False(t, row.Available)
+	require.Nil(t, row.Usage)
+	require.False(t, row.Limits.RPM.Enabled)
+	require.Equal(t, "user_override", row.Sources["rpm"])
 }

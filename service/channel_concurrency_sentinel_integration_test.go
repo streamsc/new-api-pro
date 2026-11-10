@@ -78,7 +78,7 @@ func TestChannelConcurrencySentinelFailover(t *testing.T) {
 	require.EqualValues(t, 1, peerCount)
 	t.Logf("before: master=%s; application count=1; independent Sentinel client count=1; lease replicated", oldAddress)
 
-	releaseUser, rejection, userErr := AcquireUserResources(ctx, 91502, 17, resourceSettings.UserResourceLimits{})
+	releaseUser, rejection, userErr := AcquireUserResources(ctx, 91502, 17, UserResourceAdmission{Total: resourceSettings.UserResourceLimits{}})
 	require.NoError(t, userErr)
 	require.Nil(t, rejection)
 	defer releaseUser()

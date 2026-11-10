@@ -141,3 +141,102 @@ describe('User resources card', () => {
     expect(get).toHaveBeenCalledTimes(calls)
   })
 })
+
+it.each([true, false])(
+  'shows effective limits without rule sources when usage is available=%s',
+  async (available) => {
+    vi.spyOn(api, 'get').mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          ...sample(39),
+          available,
+          sources: {
+            concurrency: 'user_override',
+            rpm: 'user_default',
+            input_tpm: 'user_default',
+          },
+          models: [
+            {
+              user_id: 12,
+              model: 'model/A',
+              configured: true,
+              available,
+              limits: sample(39).limits,
+              usage: sample(39).usage,
+              sources: {
+                concurrency: 'user_override',
+                rpm: 'model_default',
+                input_tpm: 'model_default',
+              },
+            },
+          ],
+          models_total: 1,
+        },
+      },
+    })
+    mount()
+    expect(await screen.findByText('model/A')).toBeVisible()
+    expect(
+      screen.getAllByText(available ? /39 \/ 100/ : 'Unknown / 100')
+    ).toHaveLength(2)
+    for (const source of [
+      'User override',
+      'User default',
+      'Model default',
+      'Rule removed',
+    ]) {
+      expect(screen.queryAllByText(source)).toHaveLength(0)
+    }
+    if (!available) {
+      expect(screen.queryByText(/39 \/ 100/)).not.toBeInTheDocument()
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+    }
+  }
+)
+it('pauses interval requests outside the viewport', async () => {
+  let intersect: IntersectionObserverCallback | undefined
+  const disconnect = vi.fn()
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      constructor(callback: IntersectionObserverCallback) {
+        intersect = callback
+      }
+      observe() {}
+      disconnect = disconnect
+    }
+  )
+  try {
+    const get = vi
+      .spyOn(api, 'get')
+      .mockResolvedValue({ data: { success: true, data: sample(39) } })
+    const view = mount()
+    await screen.findByRole('progressbar')
+    vi.useFakeTimers()
+    act(() =>
+      intersect?.(
+        [{ isIntersecting: false } as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      )
+    )
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000)
+    })
+    expect(get).toHaveBeenCalledTimes(1)
+    act(() =>
+      intersect?.(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      )
+    )
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000)
+    })
+    expect(get.mock.calls.length).toBeGreaterThan(1)
+    view.unmount()
+    expect(disconnect).toHaveBeenCalled()
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})

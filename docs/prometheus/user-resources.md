@@ -3,7 +3,8 @@
 ## Scope and semantics
 
 One user ID shares concurrency, estimated input TPM and RPM across API keys,
-models and gateway replicas. Admission is atomic across these three resources;
+models and gateway replicas. An optional exact-model rule adds a separate allowance per user/model.
+Admission is atomic across all six total/model resources;
 channel selection and channel limits are a separate admission step. Rejected
 admissions do not consume user resources. No queue or output-token cap is added.
 
@@ -57,7 +58,8 @@ Restarting replicas against the same Redis database preserves slots. No
 compatibility or recovery coordinator is installed.
 
 Root administrators use **System settings → Security → User resource limits**.
-The visual editor manages default limits and optional per-user overrides. Switch
+The visual editor manages total defaults, total user overrides, exact-model
+defaults and model-specific user overrides. Switch
 to JSON to edit the same draft directly. Search by username or ID to select a user;
 labels show usernames and IDs while the configuration remains keyed by user ID.
 User overrides use a compact table with 20 rows per page. Only visible rows
@@ -79,6 +81,16 @@ Invalid JSON must be corrected before switching back to visual editing. Example:
   "users": {
     "42": {"rpm": {"enabled": false, "limit": 0}},
     "43": {"concurrency": {"enabled": true, "limit": 0}}
+  },
+  "models": {
+    "gpt-4o": {
+      "defaults": {
+        "concurrency": {"enabled": true, "limit": 2},
+        "input_tpm": {"enabled": false, "limit": 0},
+        "rpm": {"enabled": true, "limit": 20}
+      },
+      "users": {"42": {"rpm": {"enabled": true, "limit": 30}}}
+    }
   }
 }
 ```
@@ -94,7 +106,10 @@ GET/PUT `/api/option/user_resources` uses existing RootAuth. Personal access
 tokens additionally require `option:read` for GET and `option:write` for PUT.
 The self-resource endpoint requires `profile:read` for personal access tokens.
 Browser sessions continue through existing session authentication. PUT accepts
-`{"config":{...},"reason":"capacity review"}`. Existing operation audits record
+`{"expected_version":"<GET version>","config":{...},"reason":"capacity review"}`.
+The content version is checked against the persisted configuration in the write
+transaction. A stale or absent version returns 409 without changing configuration;
+the editor keeps the draft so the operator can reload and reconcile it. Existing operation audits record
 operator, time, reason and before/after config; the prior config is read under the
 same database row lock as the update. Persistence reuses the options table without
 schema changes. Other replicas use the existing option polling interval
@@ -117,8 +132,8 @@ when disabled it does not access its store or group settings.
   `user_input_tpm_exceeded` or `user_rpm_exceeded`.
 - A constrained user/store check fails: 503 `user_resource_store_unavailable`.
   Channel checks retain their existing stable error codes and the same 429/503 rule.
-- No limits at that layer: failed statistics writes are logged but admitted.
-  The other layer still independently enforces its limits.
+- Either total or model limits enabled: a failed joint store operation rejects
+  closed. Only when both are unlimited can a statistics failure admit traffic.
 - Admitted requests never acquire additional cancellation from Redis failures,
   release failures or slot expiry. Releases use a bounded independent context.
 - A timed-out Redis command has an unknown outcome: it may execute after the
@@ -132,99 +147,142 @@ when disabled it does not access its store or group settings.
   expire to make room. A request larger than its entire TPM budget, zero RPM, or
   unknown concurrency completion gets no fabricated countdown.
 
-## Metrics and lifecycle
+## Exact-model rules and lifecycle
 
-User resource gauges have `scope,user_id`, where scope is `memory` or `redis`.
-Limits add `resource=concurrency|input_tpm|rpm`; identity adds `username`.
+Total defaults → total user overrides and model defaults → model user overrides
+are independent chains. Both final limits apply; there is no borrowing across
+models. Missing fields inherit, disabled fields are unlimited, and enabled zero
+blocks every new admission, including a zero-token input. Rules use the exact
+client `OriginModelName` before channel mapping. Aliases, wildcards and normalized
+provider names are not merged. Model names are valid UTF-8, 1–512 bytes, with no
+edge whitespace or control characters.
 
-| Metric | Type | Meaning |
+A model present anywhere in configuration is recorded for **all actual requesting
+users**, even if only one user has an override and model defaults are unlimited.
+No Cartesian product of users/models is pre-created. Adding a model begins its
+history with the next request. Adding a default later can reuse that recorded
+window. Deleting a model stops new model recording; existing windows and captured
+slots expire normally, and completion still releases the original slots. Re-adding
+the same name reuses unexpired state. Limits never cancel admitted requests.
+
+Use a coordinated, drained upgrade: older replicas do not enforce model rules.
+Configuration propagation still follows the existing option polling interval.
+Model Redis keys encode the exact name with base64url under
+`user_resources:v1:<user_id>:model:<encoded>:slots|window|tokens`. The existing
+total-user keys are retained. One Lua admission checks both buckets before writing
+any capacity. go-redis script retries reuse the same random member; an automatic
+replay does not double-charge. This does not make a new client submission idempotent.
+
+## Read APIs and monitoring
+
+`GET /api/user/self/resources?p=1&page_size=20&model=<exact-name>` returns only the
+authenticated user's total and model rows, final limits and per-field sources.
+A supplied user_id cannot change that identity. Model rows include `configured`,
+`available`, optional `usage`, and `sources`. Removed rules remain visible while
+activity survives. `models_complete=false` signals an incomplete directory.
+
+`GET /api/user/resources?user_id=&model=&p=1&page_size=20` requires AdminAuth and
+PAT `user:read`. It returns sparse `items`, `total`, `complete`, mode and timestamp;
+a selected user additionally gets `user_total`. Page size is bounded to 100.
+The admin user picker searches by username/ID. The self/admin tables filter exact
+models, paginate, poll every 5 seconds only while visible, and hide stale usage
+on failed refreshes. The self overview displays effective limits and usage; rule
+sources appear only in the admin overview. A successful response with unavailable
+usage retains limits and shows Unknown; zero is never substituted for missing usage.
+The self model rows share the total-resource utilization meter: green below 40%,
+yellow from 40%, and red from 80%. Unlimited or unavailable usage has no percentage
+or progress bar.
+
+Both APIs have a 5-second budget. Discovery uses 30-minute sorted-set activity
+indexes, recent local events and explicit overrides, never Redis KEYS or an
+all-user × all-model scan. Self queries also include configured model names so an
+inactive user's limits are visible. Inventory discovery is capped at 10,000 rows,
+with `complete=false` on failure/truncation. Filtering applies to this bounded
+inventory; beyond the cap, a model filter may also be incomplete. Selecting a user narrows the Redis activity index. Local memory/event
+scans also have a 10,000-entry work budget and can report incomplete discovery. Usage reads are atomic per batch of at most 100 rows, not a
+transaction across the whole inventory. Reads prune expiry without extending TTLs.
+
+Total-user Gauges retain their `scope,user_id` labels. Model Gauges add `model`;
+limits also add `resource=concurrency|rpm|input_tpm`. Scope is memory or redis.
+
+| Total metric | Model metric | Meaning |
 | --- | --- | --- |
-| `new_api_user_inflight_requests` | Gauge | Recorded live user slots |
-| `new_api_user_window_requests` | Gauge | Admissions in last 60 seconds |
-| `new_api_user_window_input_tokens` | Gauge | Estimated input admitted in last 60 seconds |
-| `new_api_user_limit{resource}` | Gauge | Limit, interpreted only when enabled |
-| `new_api_user_limit_enabled{resource}` | Gauge | 0 or 1; enabled zero is distinguishable |
-| `new_api_user_usage_available` | Gauge | Read succeeded; failed usage samples omitted |
-| `new_api_user_info{username}` | Gauge | Current database username mapping, value 1 |
-| `new_api_user_admitted_requests_total` | Counter | Local process admissions |
-| `new_api_user_rejected_requests_total{reason}` | Counter | Local rejections by finite reason |
+| `new_api_user_inflight_requests` | `new_api_user_model_inflight_requests` | Live recorded concurrency |
+| `new_api_user_window_requests` | `new_api_user_model_window_requests` | Rolling 60-second admissions |
+| `new_api_user_window_input_tokens` | `new_api_user_model_window_input_tokens` | Rolling estimated input tokens |
+| `new_api_user_limit` | `new_api_user_model_limit` | Effective allowance, only meaningful when enabled |
+| `new_api_user_limit_enabled` | `new_api_user_model_limit_enabled` | 0/1, distinguishes unlimited and blocked |
+| `new_api_user_usage_available` | `new_api_user_model_usage_available` | Read success; failed numeric usage is omitted |
+| `new_api_user_admitted_requests_total` | `new_api_user_model_admitted_requests_total` | Process-local final joint admissions |
+| `new_api_user_rejected_requests_total` | `new_api_user_model_rejected_requests_total` | Process-local final joint rejections by reason |
 
-Counters have `user_id` and rejection `reason`; Prometheus target labels
-identify replicas. Store failures use `store_unavailable`, not a quota reason.
-Counters reset on process restart. No API-key, request-ID or model metric labels.
-Resource series are bounded by users seen by a process since restart; shared Redis's active
-user index additionally discovers users seen by other replicas for 30 minutes.
-Deleted users lose resource gauge samples; historical event counters remain until
-restart. Renames change only the info label, not usage/counter identity. Expect
-10 resource gauge series plus up to 5 counter series per observed user per replica.
-This is intended for moderate user populations, not unbounded multi-million-user
-scrapes. Scrapes use the existing five-second budget, indexed user lookups in
-batches of 100, and per-user Redis calls; timed-out/unavailable samples are absent.
-Resource scrapes perform no full user-table or Redis keyspace scan. The separate
-wallet worker reads all users every 60 seconds and owns the all-user info mapping.
-It adds three series per non-deleted user plus two health series per replica. The active index is not an
-in-flight recovery system and never gates admission.
+Counter labels are user_id, optional model and rejection reason, with target labels
+identifying each process. Rejections use the final winning total/model reason or
+`store_unavailable`; no per-attempt or per-layer double counting. Model counters
+reset on restart or after 24 hours without an event, including after removal;
+reappearance starts at zero. Gauges omit deleted users. Wallet metrics own
+`new_api_user_info{scope,user_id,username}` as described below.
 
-## PromQL
+Each model combination has 10 Gauge series and 8 Counter series per target.
+The Gauge directory is capped at 10,000 total/model combinations per scrape.
+Local model Counter emission has a separate 10,000-combination cap; exceeding it
+omits all model Counters for that scrape, rather than reporting a changing arbitrary
+subset. Expired Counter entries are evicted from memory. Existing total-user
+Counters retain their process-lifetime lifecycle. A single configured model used
+by many users can still have high cardinality; size Prometheus accordingly.
 
-Use target `instance` to distinguish process counters. Configure a static `deployment`
-target label shared by replicas of one deployment and distinct across independent
-deployments. This is a Prometheus scrape label, not a gateway environment variable.
-Keep it when aggregating and drop instance labels with `max by` for Redis gauges; **never sum replica gauges**.
-For memory scope, retain `instance` because counters are process-local. Examples
-below concern shared Redis. Gauge reads are not simultaneous; `max` favors the
-higher observed value and does not create an atomic distributed scrape.
+`new_api_user_resource_scrape_success{scope,component}` reports config, directory,
+usage and counters completeness. Store failures omit usage samples and set known
+rows' available flag to zero. Directory truncation, DB errors and budget exhaustion
+must never be interpreted as zero traffic. At most 100 indexed user existence
+lookups/Redis usage batches are needed for 10,000 rows; read batches make one Redis
+round trip each (the first NOSCRIPT may add script loading). Admissions remain a
+single Redis script, releases a single command, independently of combination count.
+All monitoring uses the existing private-network-protected port 9080; no
+application-level authentication has been added.
 
-```promql
-# Current shared usage (substitute window_requests/window_input_tokens as needed)
-max by (deployment,user_id) (new_api_user_inflight_requests{scope="redis"})
+## PromQL and Grafana
 
-# Concurrency occupancy; enabled zero allowance is handled separately
-max by (deployment,user_id) (new_api_user_inflight_requests{scope="redis"})
-/ on (deployment,user_id)
-(max by (deployment,user_id) (new_api_user_limit{scope="redis",resource="concurrency"}) > 0)
-and on (deployment,user_id)
-(max by (deployment,user_id) (new_api_user_limit_enabled{scope="redis",resource="concurrency"}) == 1)
+See [model recording/alert rules](user-model-resources.rules.yml) and the importable
+[Grafana dashboard](user-model-resources.grafana.json). Set a static Prometheus
+`deployment` target label shared by replicas of one deployment; different data
+stores must have different labels. Select **one healthy instance** for all Gauge
+usage, limits, enabled and identity queries. Never sum shared Redis Gauges or take
+independent maxima of usage and limit. Memory scope must retain instance.
 
-# Admission and excess counts, sum replica-local events after rate/increase
-sum by (deployment,user_id) (increase(new_api_user_admitted_requests_total[1h]))
-sum by (deployment,user_id,reason) (
-  increase(new_api_user_rejected_requests_total{reason=~"user_.*_exceeded"}[1h])
-)
+The supplied dashboard pins one deployment/instance for Gauges and gates usage on
+up, config/directory/usage health and per-row availability. It retains enabled-zero
+and unlimited states separately. It shows config disagreement using min/max across
+healthy Redis targets; during propagation, investigate disagreement before using
+occupancy for capacity decisions. Pinned healthy nodes can still have a stale
+configuration during polling. Gauge sample times are not simultaneous. For an
+automatic source choose one `topk by(deployment)(1, up and ...healthy...)` marker
+and apply the **same marker** to every Gauge operand; never select operands
+independently. Stable pinned sources avoid selection churn.
 
-# Excess rejection ratio, excluding store/authentication failures; zero denominator stays NaN
-sum by (deployment,user_id) (rate(new_api_user_rejected_requests_total{reason=~"user_.*_exceeded"}[5m]))
-/
-(
- sum by (deployment,user_id) (rate(new_api_user_admitted_requests_total[5m]))
- + sum by (deployment,user_id) (rate(new_api_user_rejected_requests_total{reason=~"user_.*_exceeded"}[5m]))
-)
-
-# Sampled daily peak
-max_over_time((max by (deployment,user_id) (new_api_user_inflight_requests{scope="redis"}))[1d:30s])
-
-# Current username association
-max by (deployment,user_id) (new_api_user_inflight_requests{scope="redis"})
-* on (deployment,user_id) group_left(username)
-max by (deployment,user_id,username) (new_api_user_info{scope="redis"})
-```
-
-Record the occupancy expression above as `gateway:user_concurrency_ratio`, then:
+For model admissions/rejections, calculate rate on each process first, then sum:
 
 ```promql
-# Approximate observed high-occupancy seconds, not an exact accumulated duration
-sum_over_time((gateway:user_concurrency_ratio >= bool 0.80)[1d:30s]) * 30
-sum_over_time((gateway:user_concurrency_ratio >= bool 0.95)[1d:30s]) * 30
+sum by (deployment,user_id,model) (
+  rate(new_api_user_model_admitted_requests_total[5m])
+)
+sum by (deployment,user_id,model,reason) (
+  rate(new_api_user_model_rejected_requests_total[5m])
+)
 ```
 
-Sampling misses bursts; outages/staleness reduce coverage. Report coverage with
-`count_over_time(gateway:user_concurrency_ratio[1d])`, preserve historical limit
-samples, and never divide a historical usage series by today's config. No special
-high-occupancy cumulative-seconds metric, daily report, ranking or dashboard is
-introduced. During a rename, stale target samples can briefly provide two info
-mappings; use current healthy targets and account for the scrape staleness window.
+Use the total-user counterparts for total demand. Counter gaps/resets after idle
+or process restart mean sampled observations, not a durable audit ledger. Avoid
+using a window that straddles missing Counter scrapes as a complete daily count.
 
-Validation evidence and remaining limits are recorded in `validation.md`.
+The rules retain instance for occupancy and use limits from the same evaluation.
+Sampled daily peaks use `max_over_time(new_api:user_model_concurrency_ratio[1d])`.
+Approximate seconds above 80% use
+`sum_over_time((new_api:user_model_concurrency_ratio >= bool 0.8)[1d:30s]) * 30`.
+Also report `count_over_time(new_api:user_model_concurrency_ratio[1d])`; missing
+samples are missing coverage. Enabled zero is a blocked policy, not an infinite
+ratio. Neither unlimited nor unknown usage should be graphed as 0% occupancy.
+Configure notifications outside the gateway and use No Data/Error states.
 
 ## Wallet and accumulated usage snapshots
 

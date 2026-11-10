@@ -31,7 +31,31 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { api } from '@/lib/api'
 
 import { SettingsPageProvider } from '../../components/settings-page-context'
+import { userResourcesConfigSchema } from '../user-resources-schema'
 import { UserResourcesSection } from '../user-resources-section'
+
+it('validates and preserves exact model names that match object prototype properties', () => {
+  for (const name of ['__proto__', 'constructor', 'toString']) {
+    const rule = { defaults: config.defaults, users: {} }
+    const parsed = userResourcesConfigSchema.parse({
+      ...config,
+      models: { [name]: rule },
+    })
+    expect(Object.hasOwn(parsed.models ?? {}, name)).toBe(true)
+    expect(parsed.models?.[name]).toEqual(rule)
+    expect(
+      userResourcesConfigSchema.safeParse({
+        ...config,
+        models: {
+          [name]: {
+            ...rule,
+            defaults: { ...config.defaults, rpm: { enabled: true, limit: -1 } },
+          },
+        },
+      }).success
+    ).toBe(false)
+  }
+})
 
 let client: QueryClient
 let actions: HTMLDivElement
@@ -51,7 +75,7 @@ beforeEach(() => {
   document.body.append(actions)
   vi.spyOn(api, 'get').mockImplementation(async (url) => {
     if (url === '/api/option/user_resources') {
-      return { data: { success: true, data: config } }
+      return { data: { success: true, version: 'initial', data: config } }
     }
     if (url.startsWith('/api/user/search?')) {
       return {
@@ -108,6 +132,7 @@ it('requires a reason and saves explicit zero and unlimited overrides', async ()
   await waitFor(() =>
     expect(put).toHaveBeenCalledWith('/api/option/user_resources', {
       config,
+      expected_version: 'initial',
       reason: 'Capacity review',
     })
   )
@@ -271,7 +296,11 @@ it('paginates 1001 overrides and only fetches usernames for visible rows', async
   const user = userEvent.setup()
   mount()
   await screen.findByRole('button', { name: 'Edit 20' })
-  expect(screen.getAllByRole('row')).toHaveLength(21)
+  expect(
+    within(
+      screen.getByRole('region', { name: 'Defaults and user overrides' })
+    ).getAllByRole('row')
+  ).toHaveLength(21)
   expect(
     screen.queryByRole('button', { name: 'Edit 21' })
   ).not.toBeInTheDocument()
@@ -280,7 +309,13 @@ it('paginates 1001 overrides and only fetches usernames for visible rows', async
       .mocked(api.get)
       .mock.calls.filter(([url]) => /^\/api\/user\/\d+$/.test(url))
   await waitFor(() => expect(userCalls()).toHaveLength(20))
-  await user.click(screen.getByRole('button', { name: 'Go to next page' }))
+  const overrideSection = screen.getByRole('region', {
+    name: 'Defaults and user overrides',
+  }).parentElement
+  if (!overrideSection) throw new Error('Override section is missing')
+  await user.click(
+    within(overrideSection).getByRole('button', { name: 'Go to next page' })
+  )
   await screen.findByRole('button', { name: 'Edit 40' })
   await waitFor(() => expect(userCalls()).toHaveLength(40))
   await user.type(
@@ -296,7 +331,11 @@ it('paginates 1001 overrides and only fetches usernames for visible rows', async
     await screen.findByRole('option', { name: 'last-user · ID 1001' })
   )
   expect(await screen.findByRole('button', { name: 'Edit 1001' })).toBeVisible()
-  expect(screen.getAllByRole('row')).toHaveLength(2)
+  expect(
+    within(
+      screen.getByRole('region', { name: 'Defaults and user overrides' })
+    ).getAllByRole('row')
+  ).toHaveLength(2)
   await user.click(screen.getByRole('button', { name: 'Clear' }))
   expect(await screen.findByRole('button', { name: 'Edit 1' })).toBeVisible()
   await user.click(screen.getByRole('tab', { name: 'JSON' }))
@@ -335,4 +374,139 @@ it('confirms removal and preserves invalid JSON when switching modes', async () 
     'aria-selected',
     'true'
   )
+})
+
+it('adds an exact model with personal defaults and saves user overrides in the same audited draft', async () => {
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true, version: 'saved' } })
+  const user = userEvent.setup()
+  mount()
+  await user.type(
+    await screen.findByRole('combobox', { name: 'Exact model name' }),
+    'model-A'
+  )
+  await user.click(screen.getByRole('button', { name: 'Add model rule' }))
+  const modelSection = screen.getByRole('group', {
+    name: 'Model defaults and user overrides',
+  })
+  await user.selectOptions(
+    within(modelSection).getByRole('combobox', { name: 'Concurrency' }),
+    'limited'
+  )
+  fireEvent.change(
+    within(modelSection).getByRole('spinbutton', { name: 'Concurrency Limit' }),
+    { target: { value: '2' } }
+  )
+  await user.click(
+    within(modelSection).getByRole('button', { name: 'Add user override' })
+  )
+  const drawer = screen.getByRole('dialog')
+  await user.click(within(drawer).getByRole('combobox', { name: 'Username' }))
+  await user.click(await screen.findByRole('option', { name: 'bob · ID 43' }))
+  await user.selectOptions(
+    within(drawer).getByRole('combobox', { name: 'RPM' }),
+    'limited'
+  )
+  fireEvent.change(
+    within(drawer).getByRole('spinbutton', { name: 'RPM Limit' }),
+    { target: { value: '0' } }
+  )
+  await user.click(within(drawer).getByRole('button', { name: 'Apply' }))
+  expect(put).not.toHaveBeenCalled()
+  await user.type(
+    screen.getByRole('textbox', { name: 'Reason for change' }),
+    'Low capacity'
+  )
+  await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+  await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
+  expect(put.mock.calls[0][1]).toMatchObject({
+    expected_version: 'initial',
+    reason: 'Low capacity',
+    config: {
+      models: {
+        'model-A': {
+          defaults: { concurrency: { enabled: true, limit: 2 } },
+          users: { '43': { rpm: { enabled: true, limit: 0 } } },
+        },
+      },
+    },
+  })
+})
+
+it('retains model rules and the original version after a conflicting save', async () => {
+  const put = vi.spyOn(api, 'put').mockRejectedValue({
+    response: {
+      status: 409,
+      data: {
+        success: false,
+        message: 'Resource limits changed. Reload before saving.',
+      },
+    },
+  })
+  const user = userEvent.setup()
+  mount()
+  await user.type(
+    await screen.findByRole('combobox', { name: 'Exact model name' }),
+    'model-only'
+  )
+  await user.click(screen.getByRole('button', { name: 'Add model rule' }))
+  await user.type(
+    screen.getByRole('textbox', { name: 'Reason for change' }),
+    'Keep draft'
+  )
+  await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+  await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
+  expect(
+    screen.getByRole('textbox', { name: 'Reason for change' })
+  ).toHaveValue('Keep draft')
+  expect(
+    screen.getByRole('button', { name: 'Edit model model-only' })
+  ).toBeVisible()
+  expect(put.mock.calls[0][1]).toMatchObject({ expected_version: 'initial' })
+})
+
+it('requires confirmation to remove a model and keeps removal in the unsaved draft', async () => {
+  const put = vi.spyOn(api, 'put')
+  const user = userEvent.setup()
+  mount()
+  await user.type(
+    await screen.findByRole('combobox', { name: 'Exact model name' }),
+    'temporary-model'
+  )
+  await user.click(screen.getByRole('button', { name: 'Add model rule' }))
+  const section = screen.getByRole('group', {
+    name: 'Model defaults and user overrides',
+  })
+  expect(
+    within(section).getByRole('row', { name: 'temporary-model Edit' })
+  ).toHaveClass('bg-muted/50')
+  await user.click(
+    within(section).getByRole('button', { name: 'Remove model rule' })
+  )
+  await user.click(
+    within(screen.getByRole('alertdialog')).getByRole('button', {
+      name: 'Cancel',
+    })
+  )
+  expect(
+    screen.getByRole('button', { name: 'Edit model temporary-model' })
+  ).toBeVisible()
+  await user.click(
+    within(section).getByRole('button', { name: 'Remove model rule' })
+  )
+  await user.click(
+    within(screen.getByRole('alertdialog')).getByRole('button', {
+      name: 'Remove model rule',
+    })
+  )
+  expect(
+    screen.queryByRole('button', { name: 'Edit model temporary-model' })
+  ).not.toBeInTheDocument()
+  expect(put).not.toHaveBeenCalled()
+  await user.click(screen.getByRole('tab', { name: 'JSON' }))
+  const editor = screen.getByRole('textbox', {
+    name: 'Defaults and user overrides',
+  }) as HTMLTextAreaElement
+  expect(JSON.parse(editor.value).models).toEqual({})
 })
