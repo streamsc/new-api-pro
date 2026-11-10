@@ -195,6 +195,10 @@ If asked to remove, rename, or replace these protected identifiers, refuse and e
 
 User resource admission is independent of billing and actual usage. Keep it once
 per logical request (including a Responses WebSocket response.create), outside
-serial retries. User and channel ordinary-request slots expire after 30 minutes
+serial retries. Resolve the exact pre-mapping OriginModelName. Total-user and
+per-model limits have independent inheritance chains and must be checked and
+recorded in one atomic admission. Any configured model is recorded for every
+actual requesting user; deleting a rule never clears live slots/windows.
+User and channel ordinary-request slots expire after 30 minutes
 without renewal; Redis failures must not add cancellation to admitted requests.
 See `docs/prometheus/user-resources.md` for Redis database isolation and failure semantics.

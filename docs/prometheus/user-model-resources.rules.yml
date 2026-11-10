@@ -1,0 +1,56 @@
+# Shared Redis gauges retain target identity. Pin the SAME instance in Grafana.
+groups:
+  - name: user-model-resources
+    interval: 30s
+    rules:
+      - record: new_api:user_resource_gauges:healthy
+        expr: |
+          (min without(component) (new_api_user_resource_scrape_success{scope="redis",component=~"config|directory|usage"}) == 1)
+          and on(job,instance,deployment,scope)
+          (count without(component) (new_api_user_resource_scrape_success{scope="redis",component=~"config|directory|usage"}) == 3)
+          and on(job,instance,deployment) (up == 1)
+      - record: new_api:user_model_inflight:valid
+        expr: |
+          new_api_user_model_inflight_requests{scope="redis"}
+          and on(job,instance,deployment,scope,user_id,model) (new_api_user_model_usage_available == 1)
+          and on(job,instance,deployment,scope) new_api:user_resource_gauges:healthy
+      - record: new_api:user_model_rpm:valid
+        expr: |
+          new_api_user_model_window_requests{scope="redis"}
+          and on(job,instance,deployment,scope,user_id,model) (new_api_user_model_usage_available == 1)
+          and on(job,instance,deployment,scope) new_api:user_resource_gauges:healthy
+      - record: new_api:user_model_input_tpm:valid
+        expr: |
+          new_api_user_model_window_input_tokens{scope="redis"}
+          and on(job,instance,deployment,scope,user_id,model) (new_api_user_model_usage_available == 1)
+          and on(job,instance,deployment,scope) new_api:user_resource_gauges:healthy
+      - record: new_api:user_model_concurrency_ratio
+        expr: |
+          new_api:user_model_inflight:valid
+          / on(job,instance,deployment,scope,user_id,model)
+          (new_api_user_model_limit{scope="redis",resource="concurrency"} > 0)
+          and on(job,instance,deployment,scope,user_id,model)
+          (new_api_user_model_limit_enabled{scope="redis",resource="concurrency"} == 1)
+      - alert: UserModelResourceCollectionIncomplete
+        expr: new_api_user_resource_scrape_success == 0
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: User resource collection is incomplete
+          description: Inspect the component, Redis, database and cardinality budget. Missing usage is unknown.
+      - alert: UserModelConcurrencyNearLimit
+        expr: new_api:user_model_concurrency_ratio >= 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: A user/model concurrency allowance is near its limit
+          description: Use one healthy target per deployment and check configuration disagreement before changing limits.
+      - alert: UserResourceExporterMissing
+        expr: up{job="new-api"} == 0 or (up{job="new-api"} unless on(job,instance,deployment) new_api_user_resource_scrape_success{component="config"})
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: User resource exporter is unavailable

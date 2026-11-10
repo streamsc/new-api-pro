@@ -95,3 +95,7 @@ resources.store_unavailable: "用户额度存储暂不可用"
 resources.user_concurrency_exceeded: "用户并发已达上限"
 resources.user_input_tpm_exceeded: "估算输入 TPM 已达上限"
 resources.user_rpm_exceeded: "用户 RPM 已达上限"
+
+resources.user_model_concurrency_exceeded: "用户模型并发已达上限"
+resources.user_model_input_tpm_exceeded: "用户模型估算输入 TPM 已达上限"
+resources.user_model_rpm_exceeded: "用户模型 RPM 已达上限"

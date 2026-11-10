@@ -1,0 +1,334 @@
+{
+  "rule_files": [
+    "user-model-resources.rules.yml"
+  ],
+  "evaluation_interval": "30s",
+  "tests": [
+    {
+      "interval": "30s",
+      "input_series": [
+        {
+          "series": "up{job=\"new-api\",deployment=\"test\",instance=\"a\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_resource_scrape_success{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"a\",component=\"config\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_resource_scrape_success{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"a\",component=\"directory\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_resource_scrape_success{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"a\",component=\"usage\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_model_inflight_requests{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"a\",user_id=\"42\",model=\"A\"}",
+          "values": "10x2"
+        },
+        {
+          "series": "new_api_user_model_usage_available{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"a\",user_id=\"42\",model=\"A\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_model_limit{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"a\",user_id=\"42\",model=\"A\",resource=\"concurrency\"}",
+          "values": "10x2"
+        },
+        {
+          "series": "new_api_user_model_limit_enabled{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"a\",user_id=\"42\",model=\"A\",resource=\"concurrency\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_model_inflight_requests{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"a\",user_id=\"42\",model=\"blocked\"}",
+          "values": "10x2"
+        },
+        {
+          "series": "new_api_user_model_usage_available{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"a\",user_id=\"42\",model=\"blocked\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_model_limit{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"a\",user_id=\"42\",model=\"blocked\",resource=\"concurrency\"}",
+          "values": "0x2"
+        },
+        {
+          "series": "new_api_user_model_limit_enabled{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"a\",user_id=\"42\",model=\"blocked\",resource=\"concurrency\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_model_inflight_requests{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"a\",user_id=\"42\",model=\"unlimited\"}",
+          "values": "10x2"
+        },
+        {
+          "series": "new_api_user_model_usage_available{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"a\",user_id=\"42\",model=\"unlimited\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_model_limit{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"a\",user_id=\"42\",model=\"unlimited\",resource=\"concurrency\"}",
+          "values": "0x2"
+        },
+        {
+          "series": "new_api_user_model_limit_enabled{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"a\",user_id=\"42\",model=\"unlimited\",resource=\"concurrency\"}",
+          "values": "0x2"
+        },
+        {
+          "series": "new_api_user_model_inflight_requests{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"a\",user_id=\"42\",model=\"unknown\"}",
+          "values": "10x2"
+        },
+        {
+          "series": "new_api_user_model_usage_available{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"a\",user_id=\"42\",model=\"unknown\"}",
+          "values": "0x2"
+        },
+        {
+          "series": "new_api_user_model_limit{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"a\",user_id=\"42\",model=\"unknown\",resource=\"concurrency\"}",
+          "values": "10x2"
+        },
+        {
+          "series": "new_api_user_model_limit_enabled{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"a\",user_id=\"42\",model=\"unknown\",resource=\"concurrency\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "up{job=\"new-api\",deployment=\"test\",instance=\"b\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_resource_scrape_success{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"b\",component=\"config\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_resource_scrape_success{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"b\",component=\"directory\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_resource_scrape_success{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"b\",component=\"usage\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_model_inflight_requests{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"b\",user_id=\"42\",model=\"A\"}",
+          "values": "20x2"
+        },
+        {
+          "series": "new_api_user_model_usage_available{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"b\",user_id=\"42\",model=\"A\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_model_limit{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"b\",user_id=\"42\",model=\"A\",resource=\"concurrency\"}",
+          "values": "100x2"
+        },
+        {
+          "series": "new_api_user_model_limit_enabled{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"b\",user_id=\"42\",model=\"A\",resource=\"concurrency\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_model_inflight_requests{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"b\",user_id=\"42\",model=\"blocked\"}",
+          "values": "20x2"
+        },
+        {
+          "series": "new_api_user_model_usage_available{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"b\",user_id=\"42\",model=\"blocked\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_model_limit{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"b\",user_id=\"42\",model=\"blocked\",resource=\"concurrency\"}",
+          "values": "0x2"
+        },
+        {
+          "series": "new_api_user_model_limit_enabled{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"b\",user_id=\"42\",model=\"blocked\",resource=\"concurrency\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_model_inflight_requests{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"b\",user_id=\"42\",model=\"unlimited\"}",
+          "values": "20x2"
+        },
+        {
+          "series": "new_api_user_model_usage_available{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"b\",user_id=\"42\",model=\"unlimited\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_model_limit{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"b\",user_id=\"42\",model=\"unlimited\",resource=\"concurrency\"}",
+          "values": "0x2"
+        },
+        {
+          "series": "new_api_user_model_limit_enabled{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"b\",user_id=\"42\",model=\"unlimited\",resource=\"concurrency\"}",
+          "values": "0x2"
+        },
+        {
+          "series": "new_api_user_model_inflight_requests{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"b\",user_id=\"42\",model=\"unknown\"}",
+          "values": "20x2"
+        },
+        {
+          "series": "new_api_user_model_usage_available{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"b\",user_id=\"42\",model=\"unknown\"}",
+          "values": "0x2"
+        },
+        {
+          "series": "new_api_user_model_limit{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"b\",user_id=\"42\",model=\"unknown\",resource=\"concurrency\"}",
+          "values": "10x2"
+        },
+        {
+          "series": "new_api_user_model_limit_enabled{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"b\",user_id=\"42\",model=\"unknown\",resource=\"concurrency\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "up{job=\"new-api\",deployment=\"test\",instance=\"c\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_resource_scrape_success{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"c\",component=\"config\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_resource_scrape_success{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"c\",component=\"directory\"}",
+          "values": "0x2"
+        },
+        {
+          "series": "new_api_user_resource_scrape_success{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"c\",component=\"usage\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_model_inflight_requests{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"c\",user_id=\"42\",model=\"A\"}",
+          "values": "20x2"
+        },
+        {
+          "series": "new_api_user_model_usage_available{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"c\",user_id=\"42\",model=\"A\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_model_limit{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"c\",user_id=\"42\",model=\"A\",resource=\"concurrency\"}",
+          "values": "100x2"
+        },
+        {
+          "series": "new_api_user_model_limit_enabled{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"c\",user_id=\"42\",model=\"A\",resource=\"concurrency\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_model_inflight_requests{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"c\",user_id=\"42\",model=\"blocked\"}",
+          "values": "20x2"
+        },
+        {
+          "series": "new_api_user_model_usage_available{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"c\",user_id=\"42\",model=\"blocked\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_model_limit{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"c\",user_id=\"42\",model=\"blocked\",resource=\"concurrency\"}",
+          "values": "0x2"
+        },
+        {
+          "series": "new_api_user_model_limit_enabled{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"c\",user_id=\"42\",model=\"blocked\",resource=\"concurrency\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_model_inflight_requests{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"c\",user_id=\"42\",model=\"unlimited\"}",
+          "values": "20x2"
+        },
+        {
+          "series": "new_api_user_model_usage_available{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"c\",user_id=\"42\",model=\"unlimited\"}",
+          "values": "1x2"
+        },
+        {
+          "series": "new_api_user_model_limit{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"c\",user_id=\"42\",model=\"unlimited\",resource=\"concurrency\"}",
+          "values": "0x2"
+        },
+        {
+          "series": "new_api_user_model_limit_enabled{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"c\",user_id=\"42\",model=\"unlimited\",resource=\"concurrency\"}",
+          "values": "0x2"
+        },
+        {
+          "series": "new_api_user_model_inflight_requests{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"c\",user_id=\"42\",model=\"unknown\"}",
+          "values": "20x2"
+        },
+        {
+          "series": "new_api_user_model_usage_available{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"c\",user_id=\"42\",model=\"unknown\"}",
+          "values": "0x2"
+        },
+        {
+          "series": "new_api_user_model_limit{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"c\",user_id=\"42\",model=\"unknown\",resource=\"concurrency\"}",
+          "values": "10x2"
+        },
+        {
+          "series": "new_api_user_model_limit_enabled{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"c\",user_id=\"42\",model=\"unknown\",resource=\"concurrency\"}",
+          "values": "1x2"
+        }
+      ],
+      "promql_expr_test": [
+        {
+          "expr": "new_api:user_model_concurrency_ratio",
+          "eval_time": "30s",
+          "exp_samples": [
+            {
+              "labels": "new_api:user_model_concurrency_ratio{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"a\",user_id=\"42\",model=\"A\"}",
+              "value": 1
+            },
+            {
+              "labels": "new_api:user_model_concurrency_ratio{job=\"new-api\",deployment=\"test\",scope=\"redis\",instance=\"b\",user_id=\"42\",model=\"A\"}",
+              "value": 0.2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "interval": "30s",
+      "promql_expr_test": [
+        {
+          "expr": "new_api_user_resource_scrape_success{job=\"new-api\",deployment=\"test\",instance=\"a\"}",
+          "eval_time": "0s",
+          "exp_samples": []
+        },
+        {
+          "expr": "new_api:user_model_inflight:valid{job=\"new-api\",deployment=\"test\",instance=\"a\",user_id=~\".*\",model=~\".*\"}",
+          "eval_time": "0s",
+          "exp_samples": []
+        },
+        {
+          "expr": "new_api:user_model_rpm:valid{job=\"new-api\",deployment=\"test\",instance=\"a\",user_id=~\".*\",model=~\".*\"}",
+          "eval_time": "0s",
+          "exp_samples": []
+        },
+        {
+          "expr": "new_api:user_model_input_tpm:valid{job=\"new-api\",deployment=\"test\",instance=\"a\",user_id=~\".*\",model=~\".*\"}",
+          "eval_time": "0s",
+          "exp_samples": []
+        },
+        {
+          "expr": "new_api:user_model_concurrency_ratio{job=\"new-api\",deployment=\"test\",instance=\"a\",user_id=~\".*\",model=~\".*\"}",
+          "eval_time": "0s",
+          "exp_samples": []
+        },
+        {
+          "expr": "new_api_user_model_limit{job=\"new-api\",deployment=\"test\",instance=\"a\",user_id=~\".*\",model=~\".*\",scope=\"redis\"} and on(job,instance,deployment,scope) (new_api_user_resource_scrape_success{component=\"config\",scope=\"redis\"} == 1) and on(job,instance,deployment) (up == 1)",
+          "eval_time": "0s",
+          "exp_samples": []
+        },
+        {
+          "expr": "new_api_user_model_limit_enabled{job=\"new-api\",deployment=\"test\",instance=\"a\",user_id=~\".*\",model=~\".*\",scope=\"redis\"} and on(job,instance,deployment,scope) (new_api_user_resource_scrape_success{component=\"config\",scope=\"redis\"} == 1) and on(job,instance,deployment) (up == 1)",
+          "eval_time": "0s",
+          "exp_samples": []
+        },
+        {
+          "expr": "sum by(deployment,user_id,model) (rate(new_api_user_model_admitted_requests_total{job=\"new-api\",deployment=\"test\",user_id=~\".*\",model=~\".*\"}[5m]) and on(job,instance,deployment) (new_api_user_resource_scrape_success{component=\"counters\"} == 1))",
+          "eval_time": "0s",
+          "exp_samples": []
+        },
+        {
+          "expr": "sum by(deployment,user_id,model,reason) (rate(new_api_user_model_rejected_requests_total{job=\"new-api\",deployment=\"test\",user_id=~\".*\",model=~\".*\"}[5m]) and on(job,instance,deployment) (new_api_user_resource_scrape_success{component=\"counters\"} == 1))",
+          "eval_time": "0s",
+          "exp_samples": []
+        },
+        {
+          "expr": "max by(deployment,user_id,model,resource) (new_api_user_model_limit{job=\"new-api\",deployment=\"test\",user_id=~\".*\",model=~\".*\",scope=\"redis\"} and on(job,instance,deployment,scope) (new_api_user_resource_scrape_success{component=\"config\",scope=\"redis\"} == 1) and on(job,instance,deployment) (up == 1)) != min by(deployment,user_id,model,resource) (new_api_user_model_limit{job=\"new-api\",deployment=\"test\",user_id=~\".*\",model=~\".*\",scope=\"redis\"} and on(job,instance,deployment,scope) (new_api_user_resource_scrape_success{component=\"config\",scope=\"redis\"} == 1) and on(job,instance,deployment) (up == 1))",
+          "eval_time": "0s",
+          "exp_samples": []
+        },
+        {
+          "expr": "max by(deployment,user_id,model,resource) (new_api_user_model_limit_enabled{job=\"new-api\",deployment=\"test\",user_id=~\".*\",model=~\".*\",scope=\"redis\"} and on(job,instance,deployment,scope) (new_api_user_resource_scrape_success{component=\"config\",scope=\"redis\"} == 1) and on(job,instance,deployment) (up == 1)) != min by(deployment,user_id,model,resource) (new_api_user_model_limit_enabled{job=\"new-api\",deployment=\"test\",user_id=~\".*\",model=~\".*\",scope=\"redis\"} and on(job,instance,deployment,scope) (new_api_user_resource_scrape_success{component=\"config\",scope=\"redis\"} == 1) and on(job,instance,deployment) (up == 1))",
+          "eval_time": "0s",
+          "exp_samples": []
+        },
+        {
+          "expr": "count_over_time(new_api:user_model_concurrency_ratio{job=\"new-api\",deployment=\"test\",instance=\"a\",user_id=~\".*\",model=~\".*\"}[1d])",
+          "eval_time": "0s",
+          "exp_samples": []
+        }
+      ]
+    }
+  ]
+}

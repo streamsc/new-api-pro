@@ -50,6 +50,7 @@ import { Button } from '@/components/ui/button'
 import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { fetchTokenKey, getApiKeys } from '@/features/keys/api'
 import type { ApiKey } from '@/features/keys/types'
+import { AdminResourceOverview } from '@/features/user-resources/admin-resource-overview'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { getUserModels } from '@/lib/api'
 import { handleServerError } from '@/lib/handle-server-error'
@@ -67,9 +68,9 @@ import { AnnouncementsPanel } from './announcements-panel'
 import { ApiInfoPanel } from './api-info-panel'
 import { FAQPanel } from './faq-panel'
 import { PerformanceHealthPanel } from './performance-health-panel'
-import { UserResourcesCard } from './user-resources-card'
 import { SummaryCards } from './summary-cards'
 import { UptimePanel } from './uptime-panel'
+import { UserResourcesCard } from './user-resources-card'
 
 const SETUP_GUIDE_VISIBILITY_STORAGE_KEY =
   'dashboard_overview_setup_guide_expanded'
@@ -790,6 +791,7 @@ export function OverviewDashboard() {
 
           <SummaryCards />
           <UserResourcesCard />
+          {isAdmin && <AdminResourceOverview />}
 
           {showContentPanels && (
             <CardStaggerContainer

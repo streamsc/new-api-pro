@@ -150,21 +150,33 @@ func TestUserResourceOptionsDatabaseMatrix(t *testing.T) {
 			for range 2 {
 				require.NoError(t, db.AutoMigrate(&Option{}))
 			}
-			before, err := UpdateUserResourcesConfig(`{"defaults":{"rpm":{"enabled":true,"limit":10}},"users":{}}`)
+			emptyConfig, _ := setting.ParseUserResourcesConfig("")
+			before, err := UpdateUserResourcesConfig(`{"defaults":{"rpm":{"enabled":true,"limit":10}},"users":{}}`, setting.UserResourcesVersion(emptyConfig))
 			require.NoError(t, err)
 			assert.False(t, before.Defaults.RPM.Enabled)
 			// Another node's local cache can be stale; audit must use the database value.
 			common.OptionMapRWMutex.Lock()
 			common.OptionMap[setting.UserResourcesOption] = ""
 			common.OptionMapRWMutex.Unlock()
-			before, err = UpdateUserResourcesConfig(`{"defaults":{"rpm":{"enabled":true,"limit":0}},"users":{"7":{"rpm":{"enabled":false,"limit":0}}}}`)
+			persisted, _ := setting.ParseUserResourcesConfig(`{"defaults":{"rpm":{"enabled":true,"limit":10}},"users":{}}`)
+			before, err = UpdateUserResourcesConfig(`{"defaults":{"rpm":{"enabled":true,"limit":0}},"users":{"7":{"rpm":{"enabled":false,"limit":0}}},"models":{"A":{"defaults":{"rpm":{"enabled":true,"limit":2}},"users":{"7":{"concurrency":{"enabled":true,"limit":0}}}}}}`, setting.UserResourcesVersion(persisted))
 			require.NoError(t, err)
 			assert.Equal(t, 10, before.Defaults.RPM.Limit)
 			config, err := setting.CurrentUserResourcesConfig()
 			require.NoError(t, err)
 			assert.True(t, config.ForUser(8).RPM.Enabled)
 			assert.False(t, config.ForUser(7).RPM.Enabled)
-			_, err = UpdateUserResourcesConfig(`{"defaults":{"rpm":{"limit":-1}}}`)
+			require.NotNil(t, config.ForModel(7, "A"))
+			assert.True(t, config.ForModel(7, "A").Concurrency.Enabled)
+			assert.Zero(t, config.ForModel(7, "A").Concurrency.Limit)
+			assert.Equal(t, 2, config.ForModel(8, "A").RPM.Limit)
+			var saved Option
+			require.NoError(t, db.First(&saved, Option{Key: setting.UserResourcesOption}).Error)
+			_, err = UpdateUserResourcesConfig(saved.Value, setting.UserResourcesVersion(config))
+			require.NoError(t, err, "an unchanged save must work with MySQL affectedRows=0")
+			_, conflict := UpdateUserResourcesConfig(`{"defaults":{},"users":{}}`, setting.UserResourcesVersion(persisted))
+			require.ErrorIs(t, conflict, ErrUserResourcesConflict)
+			_, err = UpdateUserResourcesConfig(`{"defaults":{"rpm":{"limit":-1}}}`, setting.UserResourcesVersion(config))
 			require.Error(t, err)
 			var option Option
 			require.NoError(t, db.First(&option, Option{Key: "Unrelated"}).Error)

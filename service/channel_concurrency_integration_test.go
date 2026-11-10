@@ -69,7 +69,7 @@ func TestUserResourcesRealRedisProcesses(t *testing.T) {
 	defer func() { common.RedisEnabled, common.RDB = oldEnabled, oldClient }()
 	keys := userResourceKeys(9981)
 	if os.Getenv("ISSUE8_CHILD") == "1" {
-		_, rejected, err := AcquireUserResources(context.Background(), 9981, 7, setting.UserResourceLimits{Concurrency: setting.ResourceLimit{Enabled: true, Limit: 1}})
+		_, rejected, err := AcquireUserResources(context.Background(), 9981, 7, UserResourceAdmission{Total: setting.UserResourceLimits{Concurrency: setting.ResourceLimit{Enabled: true, Limit: 1}}})
 		require.NoError(t, err)
 		if rejected == nil {
 			fmt.Println("ADMITTED")
@@ -97,7 +97,7 @@ func TestUserResourcesRealRedisProcesses(t *testing.T) {
 	require.NoError(t, other.Del(context.Background(), keys...).Err())
 	defer other.Del(context.Background(), keys...)
 	common.RDB = other
-	release, rejected, err := AcquireUserResources(context.Background(), 9981, 2, setting.UserResourceLimits{Concurrency: setting.ResourceLimit{Enabled: true, Limit: 1}})
+	release, rejected, err := AcquireUserResources(context.Background(), 9981, 2, UserResourceAdmission{Total: setting.UserResourceLimits{Concurrency: setting.ResourceLimit{Enabled: true, Limit: 1}}})
 	require.NoError(t, err)
 	require.Nil(t, rejected)
 	release()

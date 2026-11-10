@@ -19,6 +19,14 @@ For commercial licensing, please contact support@quantumnous.com
 // Static translation keys that don't get picked up by the t('...') regex.
 // These cover dynamic labels (e.g. constants, configs) that are passed into t at runtime.
 export const STATIC_I18N_KEYS = [
+  'Enter a new valid exact model name.',
+  'User override',
+  'User default',
+  'Model default',
+  'Rule removed',
+  'Estimated input TPM',
+  'Resource limits changed. Reload before saving.',
+
   // Affinity diagnostic states and server messages are translated dynamically.
   'Starting',
   'Running',
