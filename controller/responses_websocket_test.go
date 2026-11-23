@@ -32,6 +32,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/websocket"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -300,6 +301,7 @@ type responsesWSBillingTest struct {
 	upstreamDone chan struct{}
 	connections  atomic.Int32
 	gatewayURL   string
+	resourceTime atomic.Int64
 }
 
 func (fixture *responsesWSBillingTest) closeAndWait(t *testing.T) {
@@ -420,6 +422,15 @@ func newResponsesWSBillingTest(t *testing.T, expression string, handle func(*web
 	})
 	engine := gin.New()
 	engine.Use(middleware.CaptureUsageRequestHeaders())
+	engine.Use(func(c *gin.Context) {
+		ctx := setting.WithUserResourceClock(c.Request.Context(), func() time.Time {
+			if at := fixture.resourceTime.Load(); at != 0 {
+				return time.Unix(at, 0)
+			}
+			return time.Now()
+		})
+		c.Request = c.Request.WithContext(ctx)
+	})
 	engine.GET("/v1/responses", middleware.TokenAuth(), func(c *gin.Context) {
 		defer close(fixture.done)
 		c.Set(common.RequestIdKey, "responses-ws-billing")
@@ -1521,13 +1532,20 @@ func TestUserModelResourcesSharedByHTTPAndResponsesWebSocket(t *testing.T) {
 		_, _, _ = ws.ReadMessage()
 	}, completed)
 	previous := common.OptionMap
-	common.OptionMap = map[string]string{setting.UserResourcesOption: `{"defaults":{"rpm":{"enabled":true,"limit":5}},"models":{"ws-billing":{"defaults":{"rpm":{"enabled":true,"limit":2}}},"gpt-4o":{"defaults":{"rpm":{"enabled":true,"limit":0}}}}}`}
+	common.OptionMap = map[string]string{setting.UserResourcesOption: `{"defaults":{"rpm":{"enabled":true,"limit":5}},"models":{"ws-billing":{"defaults":{"rpm":{"enabled":true,"limit":10}},"schedule":{"timezone":"Asia/Shanghai","periods":[{"start":"07:00","end":"21:00","multiplier":0.1}]}},"gpt-4o":{"defaults":{"rpm":{"enabled":true,"limit":0}}}}}`}
 	defer func() { common.OptionMap = previous }()
+	peak := time.Date(2026, 11, 19, 23, 0, 0, 0, time.UTC)
+	fixture.resourceTime.Store(peak.Add(-time.Second).Unix())
 	ctx := context.Background()
 	initial, err := service.GetUserResourceUsage(ctx, fixture.user.Id)
 	require.NoError(t, err)
 	require.Zero(t, initial.Concurrency, "idle WebSocket must not acquire resources")
 	require.Zero(t, initial.RPM)
+	readings := gin.New()
+	readings.Use(func(c *gin.Context) { c.Set("id", fixture.user.Id) })
+	readings.GET("/api/user/self/resources", GetSelfResources)
+	readings.GET("/api/user/resources", GetAdminResources)
+	readings.GET("/api/option/user_resources", GetUserResourcesConfig)
 	request, err := http.NewRequest(http.MethodPost, fixture.gatewayURL+"/v1/responses", strings.NewReader(`{"model":"ws-billing","input":"hello","stream":true}`))
 	require.NoError(t, err)
 	request.Header.Set("Authorization", "Bearer sk-"+fixture.token.Key)
@@ -1546,6 +1564,43 @@ func TestUserModelResourcesSharedByHTTPAndResponsesWebSocket(t *testing.T) {
 	}
 	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"hello"}`)))
 	require.Equal(t, "response.completed", readResponsesWSTestEvent(t, fixture.client)["type"])
+	for _, tc := range []struct {
+		at  time.Time
+		rpm int
+	}{{peak.Add(-time.Second), 10}, {peak, 1}} {
+		readCtx := setting.WithUserResourceClock(ctx, func() time.Time { return tc.at })
+		for _, path := range []string{"/api/user/self/resources?model=ws-billing", fmt.Sprintf("/api/user/resources?model=ws-billing&user_id=%d", fixture.user.Id)} {
+			recorder := httptest.NewRecorder()
+			readings.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil).WithContext(readCtx))
+			require.Equal(t, http.StatusOK, recorder.Code)
+			var reply struct {
+				Data struct {
+					Models []service.UserModelResourceRow
+					Items  []service.UserModelResourceRow
+				}
+			}
+			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &reply))
+			rows := append(reply.Data.Models, reply.Data.Items...)
+			require.Len(t, rows, 1)
+			assert.Equal(t, tc.rpm, rows[0].Limits.RPM.Limit)
+			assert.Equal(t, "model_default", rows[0].Sources["rpm"])
+			require.NotNil(t, rows[0].Usage)
+			assert.Equal(t, 2, rows[0].Usage.RPM)
+		}
+		const metric = "new_api_user_model_limit"
+		metrics := fmt.Sprintf(`# HELP %[1]s Effective limit; interpret only when enabled.
+# TYPE %[1]s gauge
+%[1]s{model="ws-billing",resource="concurrency",scope="redis",user_id="%[2]d"} 0
+%[1]s{model="ws-billing",resource="input_tpm",scope="redis",user_id="%[2]d"} 0
+%[1]s{model="ws-billing",resource="rpm",scope="redis",user_id="%[2]d"} %[3]d
+`, metric, fixture.user.Id, tc.rpm)
+		require.NoError(t, testutil.CollectAndCompare(service.UserResourcesCollector{Context: readCtx}, strings.NewReader(metrics), metric))
+	}
+	configResponse := httptest.NewRecorder()
+	readings.ServeHTTP(configResponse, httptest.NewRequest(http.MethodGet, "/api/option/user_resources", nil))
+	require.Equal(t, http.StatusOK, configResponse.Code)
+	assert.Contains(t, configResponse.Body.String(), `"rpm":{"enabled":true,"limit":10}`)
+	fixture.resourceTime.Store(peak.Unix())
 	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"blocked","event_id":"quota-check"}`)))
 	denied := readResponsesWSTestEvent(t, fixture.client)
 	require.Equal(t, float64(http.StatusTooManyRequests), denied["status"])

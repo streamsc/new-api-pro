@@ -425,6 +425,174 @@ func TestUserModelConfigInheritanceAndCache(t *testing.T) {
 	require.Equal(t, 20, first.ForUser(42).RPM.Limit, "published snapshots must stay immutable")
 }
 
+func TestUserModelSchedules(t *testing.T) {
+	config, err := setting.ParseUserResourcesConfig(`{
+		"defaults":{"rpm":{"enabled":true,"limit":200}},
+		"models":{
+			"A":{
+				"defaults":{"concurrency":{"enabled":true,"limit":20},"input_tpm":{"enabled":true,"limit":100000},"rpm":{"enabled":true,"limit":120}},
+				"users":{"42":{"rpm":{"enabled":true,"limit":57}},"43":{"concurrency":{"enabled":true,"limit":3},"input_tpm":{"enabled":true,"limit":0},"rpm":{"enabled":false,"limit":75}}},
+				"schedule":{"timezone":"Asia/Shanghai","periods":[
+					{"start":"07:00","end":"21:00","multiplier":0.1},
+					{"start":"21:00","end":"22:00","multiplier":2},
+					{"start":"22:00","end":"02:00","multiplier":0.25}
+				]}
+			},
+			"B":{"defaults":{"rpm":{"enabled":true,"limit":80}}},
+			"DST":{"defaults":{"rpm":{"enabled":true,"limit":10}},"schedule":{"timezone":"America/New_York","periods":[{"start":"01:00","end":"02:00","multiplier":0.1}]}}
+		}
+	}`)
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		at                    string
+		concurrency, tpm, rpm int
+	}{
+		{"2026-11-20T06:59:59+08:00", 20, 100000, 120},
+		{"2026-11-19T23:00:00Z", 2, 10000, 12},
+		{"2026-11-20T20:59:59+08:00", 2, 10000, 12},
+		{"2026-11-20T21:00:00+08:00", 40, 200000, 240},
+		{"2026-11-20T22:00:00+08:00", 5, 25000, 30},
+		{"2026-11-21T01:59:59+08:00", 5, 25000, 30},
+		{"2026-11-21T02:00:00+08:00", 20, 100000, 120},
+	} {
+		t.Run(tc.at, func(t *testing.T) {
+			at, err := time.Parse(time.RFC3339, tc.at)
+			require.NoError(t, err)
+			limits := config.ForModelAt(41, "A", at)
+			require.NotNil(t, limits)
+			assert.Equal(t, tc.concurrency, limits.Concurrency.Limit)
+			assert.Equal(t, tc.tpm, limits.InputTPM.Limit)
+			assert.Equal(t, tc.rpm, limits.RPM.Limit)
+		})
+	}
+	peak := time.Date(2026, 11, 20, 4, 0, 0, 0, time.UTC)
+	require.Equal(t, 5, config.ForModelAt(42, "A", peak).RPM.Limit)
+	require.Equal(t, &setting.UserResourceLimits{
+		Concurrency: setting.ResourceLimit{Enabled: true, Limit: 1},
+		InputTPM:    setting.ResourceLimit{Enabled: true, Limit: 0},
+		RPM:         setting.ResourceLimit{Enabled: false, Limit: 75},
+	}, config.ForModelAt(43, "A", peak))
+	require.Equal(t, 80, config.ForModelAt(42, "B", peak).RPM.Limit)
+	require.Equal(t, 200, config.ForUser(42).RPM.Limit)
+	require.Nil(t, config.ForModelAt(42, "a", peak))
+
+	// Repeated fall-back minutes match twice. A spring jump skips the end minute.
+	for _, tc := range []struct {
+		at  string
+		rpm int
+	}{
+		{"2026-11-01T05:30:00Z", 1},
+		{"2026-11-01T06:30:00Z", 1},
+		{"2026-11-01T07:00:00Z", 10},
+		{"2026-03-08T06:59:59Z", 1},
+		{"2026-03-08T07:00:00Z", 10},
+	} {
+		at, err := time.Parse(time.RFC3339, tc.at)
+		require.NoError(t, err)
+		assert.Equal(t, tc.rpm, config.ForModelAt(42, "DST", at).RPM.Limit, tc.at)
+	}
+}
+
+func TestUserModelScheduleValidation(t *testing.T) {
+	for _, tc := range []struct {
+		name, zone, periods string
+		wantError           string
+	}{
+		{"invalid timezone", "Asia/Unknown", `[]`, "valid IANA timezone"},
+		{"system timezone", "Local", `[]`, "valid IANA timezone"},
+		{"empty schedule", "UTC", `[]`, "at least one period"},
+		{"invalid time", "UTC", `[{"start":"7:00","end":"24:00","multiplier":1}]`, "HH:mm"},
+		{"equal endpoints", "UTC", `[{"start":"07:00","end":"07:00","multiplier":1}]`, "distinct"},
+		{"zero multiplier", "UTC", `[{"start":"07:00","end":"21:00","multiplier":0}]`, "positive"},
+		{"negative multiplier", "UTC", `[{"start":"07:00","end":"21:00","multiplier":-1}]`, "positive"},
+		{"non-finite multiplier", "UTC", `[{"start":"07:00","end":"21:00","multiplier":1e400}]`, "float64"},
+		{"overlap after midnight", "UTC", `[{"start":"22:00","end":"02:00","multiplier":1},{"start":"01:00","end":"03:00","multiplier":1}]`, "overlap"},
+		{"overflow", "UTC", `[{"start":"07:00","end":"21:00","multiplier":1.000000001}]`, "maximum"},
+		{"within range after rounding", "UTC", `[{"start":"07:00","end":"21:00","multiplier":1.0000000001}]`, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := fmt.Sprintf(`{"models":{"A":{"users":{"42":{"rpm":{"enabled":true,"limit":2147483647}}},"schedule":{"timezone":%q,"periods":%s}}}}`, tc.zone, tc.periods)
+			config, err := setting.ParseUserResourcesConfig(raw)
+			if tc.wantError != "" {
+				require.ErrorContains(t, err, tc.wantError)
+				return
+			}
+			require.NoError(t, err)
+			at := time.Date(2026, 11, 20, 7, 0, 0, 0, time.UTC)
+			assert.Equal(t, 2147483647, config.ForModelAt(42, "A", at).RPM.Limit)
+		})
+	}
+}
+
+func TestUserModelScheduleAdmissionKeepsHistory(t *testing.T) {
+	config, err := setting.ParseUserResourcesConfig(`{"defaults":{"rpm":{"enabled":true,"limit":2}},"models":{"scheduled":{
+		"defaults":{"concurrency":{"enabled":true,"limit":10},"input_tpm":{"enabled":true,"limit":100},"rpm":{"enabled":true,"limit":10}},
+		"schedule":{"timezone":"UTC","periods":[{"start":"07:00","end":"21:00","multiplier":0.1}]}
+	}}}`)
+	require.NoError(t, err)
+	peak := time.Date(2026, 11, 20, 7, 0, 0, 0, time.UTC)
+	for _, store := range []string{"memory", "real Redis"} {
+		t.Run(store, func(t *testing.T) {
+			ctx := context.Background()
+			const id = 801
+			if store == "memory" {
+				useMemoryChannelConcurrency(t)
+				delete(userResourcesMemory.users, id)
+				delete(userResourcesMemory.models, userModelResourceKey{id, "scheduled"})
+			} else {
+				address := os.Getenv("ISSUE20_REDIS_ADDR")
+				if address == "" {
+					t.Skip("dedicated real Redis not configured")
+				}
+				previous, enabled := common.RDB, common.RedisEnabled
+				client := redis.NewClient(&redis.Options{Addr: address, DB: 15})
+				require.NoError(t, client.FlushDB(ctx).Err())
+				common.RDB, common.RedisEnabled = client, true
+				t.Cleanup(func() {
+					common.RDB, common.RedisEnabled = previous, enabled
+					require.NoError(t, client.FlushDB(ctx).Err())
+					require.NoError(t, client.Close())
+				})
+			}
+			base := UserResourceAdmission{Total: config.ForUser(id), ModelName: "scheduled", Model: config.ForModelAt(id, "scheduled", peak.Add(-time.Second))}
+			peakAdmission := UserResourceAdmission{Total: base.Total, ModelName: base.ModelName, Model: config.ForModelAt(id, "scheduled", peak)}
+			release, rejection, err := AcquireUserResources(ctx, id, 8, base)
+			require.NoError(t, err)
+			require.Nil(t, rejection)
+			defer release()
+			_, rejection, err = AcquireUserResources(ctx, id, 1, peakAdmission)
+			require.NoError(t, err)
+			require.NotNil(t, rejection)
+			assert.Equal(t, "user_model_concurrency_exceeded", rejection.Code)
+			release()
+			for _, tc := range []struct {
+				tokens int
+				code   string
+			}{{3, "user_model_input_tpm_exceeded"}, {1, "user_model_rpm_exceeded"}} {
+				_, rejection, err = AcquireUserResources(ctx, id, tc.tokens, peakAdmission)
+				require.NoError(t, err)
+				require.NotNil(t, rejection)
+				assert.Equal(t, tc.code, rejection.Code)
+			}
+			usage, err := GetUserResourceUsage(ctx, id)
+			require.NoError(t, err)
+			assert.Equal(t, UserResourceUsage{0, 8, 1}, usage)
+			base.Model = config.ForModelAt(id, "scheduled", peak.Add(14*time.Hour))
+			releaseNext, rejection, err := AcquireUserResources(ctx, id, 3, base)
+			require.NoError(t, err)
+			require.Nil(t, rejection)
+			defer releaseNext()
+			_, rejection, err = AcquireUserResources(ctx, id, 1, base)
+			require.NoError(t, err)
+			require.NotNil(t, rejection)
+			assert.Equal(t, "user_rpm_exceeded", rejection.Code)
+			usage, err = GetUserResourceUsage(ctx, id)
+			require.NoError(t, err)
+			assert.Equal(t, UserResourceUsage{1, 11, 2}, usage)
+		})
+	}
+}
+
 func TestUserModelCountersExpireAfterIdle(t *testing.T) {
 	now := time.Now()
 	key := userModelResourceKey{719, "counter-expiry"}

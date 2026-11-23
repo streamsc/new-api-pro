@@ -1228,7 +1228,8 @@ func TestUserResourceLimitsRequireRootAndAuditBeforeAfter(t *testing.T) {
 	engine.Use(middleware.RequestId())
 	engine.PUT("/api/option/user_resources", middleware.RootAuth(), UpdateUserResourcesConfig)
 	emptyConfig, _ := setting.ParseUserResourcesConfig("")
-	body := `{"expected_version":"` + setting.UserResourcesVersion(emptyConfig) + `","config":{"defaults":{"rpm":{"enabled":true,"limit":10}},"users":{}},"reason":"capacity review"}`
+	config := `{"models":{"A":{"defaults":{"rpm":{"enabled":true,"limit":100}},"schedule":{"timezone":"Asia/Shanghai","periods":[{"start":"07:00","end":"21:00","multiplier":0.1}]}}}}`
+	body := `{"expected_version":"` + setting.UserResourcesVersion(emptyConfig) + `","config":` + config + `,"reason":"capacity review"}`
 	response := accessTokenRequest(engine, http.MethodPut, "/api/option/user_resources", credential, "", body)
 	require.Equal(t, http.StatusForbidden, response.Code, "ordinary admin cannot change root options")
 	require.NoError(t, model.DB.Model(user).Update("role", common.RoleRootUser).Error)
@@ -1236,13 +1237,30 @@ func TestUserResourceLimitsRequireRootAndAuditBeforeAfter(t *testing.T) {
 	response = accessTokenRequest(engine, http.MethodPut, "/api/option/user_resources", credential, "", body)
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	require.Contains(t, response.Body.String(), `"success":true`)
+	var saved struct {
+		Data    setting.UserResourcesConfig
+		Version string
+	}
+	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &saved))
+	require.Equal(t, 0.1, saved.Data.Models["A"].Schedule.Periods[0].Multiplier)
+	config = strings.Replace(config, `"multiplier":0.1`, `"multiplier":0.5`, 1)
+	body = `{"expected_version":"` + saved.Version + `","config":` + config + `,"reason":"capacity review"}`
+	response = accessTokenRequest(engine, http.MethodPut, "/api/option/user_resources", credential, "", body)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	var audit model.AuditLog
-	require.NoError(t, model.LOG_DB.Where("action = ?", "user_resource_limits.update").First(&audit).Error)
-	encoded, err := common.Marshal(audit)
+	require.NoError(t, model.LOG_DB.Where("action = ?", "user_resource_limits.update").Last(&audit).Error)
+	var change struct {
+		Before setting.UserResourcesConfig
+		After  setting.UserResourcesConfig
+		Reason string
+	}
+	require.NotNil(t, audit.Other.Op)
+	encoded, err := common.Marshal(audit.Other.Op.Params)
 	require.NoError(t, err)
-	require.Contains(t, string(encoded), "capacity review")
-	require.Contains(t, string(encoded), "before")
-	require.Contains(t, string(encoded), "after")
+	require.NoError(t, common.Unmarshal(encoded, &change))
+	assert.Equal(t, "capacity review", change.Reason)
+	assert.Equal(t, 0.1, change.Before.Models["A"].Schedule.Periods[0].Multiplier)
+	assert.Equal(t, 0.5, change.After.Models["A"].Schedule.Periods[0].Multiplier)
 }
 
 func TestUserResourceSelfEndpointAuthenticatesAndIgnoresOtherUserID(t *testing.T) {

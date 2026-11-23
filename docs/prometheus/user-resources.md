@@ -89,7 +89,11 @@ Invalid JSON must be corrected before switching back to visual editing. Example:
         "input_tpm": {"enabled": false, "limit": 0},
         "rpm": {"enabled": true, "limit": 20}
       },
-      "users": {"42": {"rpm": {"enabled": true, "limit": 30}}}
+      "users": {"42": {"rpm": {"enabled": true, "limit": 30}}},
+      "schedule": {
+        "timezone": "Asia/Shanghai",
+        "periods": [{"start": "07:00", "end": "21:00", "multiplier": 0.1}]
+      }
     }
   }
 }
@@ -164,6 +168,16 @@ history with the next request. Adding a default later can reuse that recorded
 window. Deleting a model stops new model recording; existing windows and captured
 slots expire normally, and completion still releases the original slots. Re-adding
 the same name reuses unexpired state. Limits never cancel admitted requests.
+
+Use **Model rate limit schedules** in the user resource limits settings to edit
+daily periods and preview the model defaults for each period. In the example
+above, 07:00 inclusive to 21:00 exclusive in Asia/Shanghai applies 0.1× to each
+user's resolved model limits. Outside the period, base limits apply. An end time
+earlier than the start crosses midnight. Periods in the same schedule cannot
+overlap. Positive results round down to a minimum of one. Zero and unlimited
+retain their meanings. Existing slots and rolling usage carry across boundaries.
+Replicas evaluate the configured timezone using their local system clock and
+timezone data. Keep clocks and timezone data synchronized across the deployment.
 
 Use a coordinated, drained upgrade: older replicas do not enforce model rules.
 Configuration propagation still follows the existing option polling interval.

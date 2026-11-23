@@ -109,3 +109,39 @@ it('hides stale rows after a failed refresh and offers retry', async () => {
   expect(screen.queryByText('recent-model')).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
 })
+
+it('shows retained usage against the lower model limit after a refresh', async () => {
+  const result = (limit: number) => ({
+    data: {
+      success: true,
+      data: {
+        items: [
+          {
+            user_id: 42,
+            model: 'gpt-4o',
+            configured: true,
+            available: true,
+            limits: {
+              concurrency: { enabled: false, limit: 0 },
+              input_tpm: { enabled: false, limit: 0 },
+              rpm: { enabled: true, limit },
+            },
+            usage: { concurrency: 0, input_tpm: 20, rpm: 2 },
+          },
+        ],
+        total: 1,
+        complete: true,
+        mode: 'redis',
+      },
+    },
+  })
+  const get = vi.spyOn(api, 'get').mockResolvedValue(result(10))
+  mount()
+  expect(await screen.findByText('2 / 10')).toBeVisible()
+  get.mockResolvedValue(result(1))
+  await act(async () => {
+    await client.invalidateQueries({ queryKey: ['admin-user-resources'] })
+  })
+  expect(await screen.findByText('2 / 1')).toBeVisible()
+  expect(screen.queryByText('2 / 10')).not.toBeInTheDocument()
+})

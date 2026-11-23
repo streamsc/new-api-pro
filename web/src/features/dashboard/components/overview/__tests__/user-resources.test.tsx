@@ -194,6 +194,41 @@ it.each([true, false])(
     }
   }
 )
+
+it('shows retained model usage against the lower personal limit after a refresh', async () => {
+  const result = (limit: number) => {
+    const usage = sample(0)
+    return {
+      data: {
+        success: true,
+        data: {
+          ...usage,
+          models: [
+            {
+              model: 'gpt-4o',
+              user_id: usage.user_id,
+              configured: true,
+              available: true,
+              limits: { ...usage.limits, rpm: { enabled: true, limit } },
+              usage: { concurrency: 0, input_tpm: 20, rpm: 2 },
+            },
+          ],
+          models_total: 1,
+        },
+      },
+    }
+  }
+  const get = vi.spyOn(api, 'get').mockResolvedValue(result(10))
+  mount()
+  expect(await screen.findByText(/^2 \/ 10 ·/)).toBeVisible()
+  get.mockResolvedValue(result(1))
+  await act(async () => {
+    await client.invalidateQueries({ queryKey: ['self-resources'] })
+  })
+  expect(await screen.findByText(/^2 \/ 1 ·/)).toBeVisible()
+  expect(screen.queryByText(/^2 \/ 10 ·/)).not.toBeInTheDocument()
+})
+
 it('pauses interval requests outside the viewport', async () => {
   let intersect: IntersectionObserverCallback | undefined
   const disconnect = vi.fn()

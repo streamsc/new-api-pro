@@ -276,9 +276,9 @@ type UserModelResourceRow struct {
 	Available  bool                       `json:"available"`
 }
 
-func modelResourceRow(config setting.UserResourcesConfig, key userModelResourceKey) UserModelResourceRow {
+func modelResourceRow(config setting.UserResourcesConfig, key userModelResourceKey, at time.Time) UserModelResourceRow {
 	row := UserModelResourceRow{UserID: key.UserID, Model: key.Model, Sources: map[string]string{"concurrency": "unconfigured", "input_tpm": "unconfigured", "rpm": "unconfigured"}}
-	if limits := config.ForModel(key.UserID, key.Model); limits != nil {
+	if limits := config.ForModelAt(key.UserID, key.Model, at); limits != nil {
 		row.Configured = true
 		row.Limits = *limits
 		row.Sources = setting.ResourceSources(config.Models[key.Model].Users[strconv.Itoa(key.UserID)], "model_default")
@@ -286,6 +286,7 @@ func modelResourceRow(config setting.UserResourcesConfig, key userModelResourceK
 	return row
 }
 func GetUserModelResourcePage(ctx context.Context, config setting.UserResourcesConfig, userID int, model string, page, pageSize int) ([]UserModelResourceRow, int, bool) {
+	at := setting.UserResourceTime(ctx)
 	keys, complete := discoverUserModels(ctx, config, userID)
 	if model != "" {
 		keys = slices.DeleteFunc(keys, func(k userModelResourceKey) bool { return k.Model != model })
@@ -296,7 +297,7 @@ func GetUserModelResourcePage(ctx context.Context, config setting.UserResourcesC
 	usage, err := readResourceUsageBatch(ctx, keys)
 	rows := make([]UserModelResourceRow, 0, len(keys))
 	for _, key := range keys {
-		row := modelResourceRow(config, key)
+		row := modelResourceRow(config, key, at)
 		if err == nil {
 			v := usage[key]
 			row.Usage = &v
