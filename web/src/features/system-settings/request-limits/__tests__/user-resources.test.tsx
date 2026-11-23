@@ -77,6 +77,14 @@ beforeEach(() => {
     if (url === '/api/option/user_resources') {
       return { data: { success: true, version: 'initial', data: config } }
     }
+    if (url === '/api/models') {
+      return {
+        data: {
+          success: true,
+          data: { 1: ['model-A'], 2: ['model-A', 'model-B'], 3: null },
+        },
+      }
+    }
     if (url.startsWith('/api/user/search?')) {
       return {
         data: {
@@ -114,6 +122,209 @@ function mount() {
     </QueryClientProvider>
   )
 }
+
+async function selectScheduleModel(
+  user: ReturnType<typeof userEvent.setup>,
+  name: string
+) {
+  await user.click(
+    await screen.findByRole('tab', { name: 'Model rate limit schedules' })
+  )
+  const model = screen.getByRole('combobox', { name: 'Model' })
+  await user.type(model, name)
+  await screen.findByRole('option', { name })
+  await user.keyboard('{ArrowDown}{Enter}')
+  expect(model).toHaveValue(name)
+}
+
+it('keeps a model schedule through JSON edits and a failed save, and can remove the schedule', async () => {
+  const put = vi.spyOn(api, 'put').mockRejectedValue(new Error('Save failed'))
+  const user = userEvent.setup()
+  mount()
+  await selectScheduleModel(user, 'model-A')
+  await user.click(screen.getByRole('button', { name: 'Add time period' }))
+  const timezone = screen.getByRole('combobox', { name: 'Timezone' })
+  await user.clear(timezone)
+  await user.type(timezone, 'Asia/Shanghai')
+  await screen.findByRole('option', { name: 'Asia/Shanghai' })
+  await user.keyboard('{ArrowDown}{Enter}')
+  fireEvent.change(screen.getByLabelText('Start time'), {
+    target: { value: '08:00' },
+  })
+  fireEvent.change(screen.getByRole('spinbutton', { name: 'Multiplier' }), {
+    target: { value: '0.1' },
+  })
+
+  await user.click(screen.getByRole('tab', { name: 'JSON' }))
+  const editor = screen.getByRole<HTMLTextAreaElement>('textbox', {
+    name: 'Defaults and user overrides',
+  })
+  const draft = JSON.parse(editor.value)
+  expect(draft.models['model-A'].schedule).toEqual({
+    timezone: 'Asia/Shanghai',
+    periods: [{ start: '08:00', end: '21:00', multiplier: 0.1 }],
+  })
+  draft.models['model-A'].schedule.periods[0].start = '07:00'
+  fireEvent.input(editor, { target: { value: JSON.stringify(draft) } })
+  await user.click(
+    screen.getByRole('tab', { name: 'Model rate limit schedules' })
+  )
+  expect(screen.getByLabelText('Start time')).toHaveValue('07:00')
+  await user.type(
+    screen.getByRole('textbox', { name: 'Reason for change' }),
+    'Peak hours'
+  )
+  await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+  await waitFor(() =>
+    expect(put).toHaveBeenCalledExactlyOnceWith('/api/option/user_resources', {
+      expected_version: 'initial',
+      config: draft,
+      reason: 'Peak hours',
+    })
+  )
+  expect(screen.getByRole('spinbutton', { name: 'Multiplier' })).toHaveValue(
+    0.1
+  )
+  expect(
+    screen.getByRole('textbox', { name: 'Reason for change' })
+  ).toHaveValue('Peak hours')
+
+  await user.click(screen.getByRole('button', { name: 'Remove time period 1' }))
+  expect(
+    screen.queryByRole('group', { name: 'Time period 1' })
+  ).not.toBeInTheDocument()
+  await user.click(screen.getByRole('tab', { name: 'JSON' }))
+  expect(
+    JSON.parse(
+      screen.getByRole<HTMLTextAreaElement>('textbox', {
+        name: 'Defaults and user overrides',
+      }).value
+    ).models['model-A']
+  ).not.toHaveProperty('schedule')
+})
+
+it('associates invalid times and multipliers with fields and rejects overlapping overnight periods', async () => {
+  const put = vi.spyOn(api, 'put')
+  const user = userEvent.setup()
+  mount()
+  await selectScheduleModel(user, 'model-A')
+  const addPeriod = screen.getByRole('button', { name: 'Add time period' })
+  await user.click(addPeriod)
+  const first = within(screen.getByRole('group', { name: 'Time period 1' }))
+  const start = first.getByLabelText('Start time')
+  const end = first.getByLabelText('End time')
+  const multiplier = first.getByRole('spinbutton', { name: 'Multiplier' })
+  fireEvent.change(start, { target: { value: '' } })
+  expect(start).toHaveAccessibleDescription('Enter a valid time.')
+  fireEvent.change(start, { target: { value: '21:00' } })
+  expect(end).toHaveAccessibleDescription('Start and end times must differ.')
+  fireEvent.change(multiplier, { target: { value: '0' } })
+  expect(multiplier).toHaveAccessibleDescription('Enter a positive multiplier.')
+  fireEvent.change(multiplier, { target: { value: '0.1' } })
+  fireEvent.change(start, { target: { value: '22:00' } })
+  fireEvent.change(end, { target: { value: '02:00' } })
+  expect(first.getByText('Crosses midnight')).toBeVisible()
+
+  await user.click(addPeriod)
+  const second = within(screen.getByRole('group', { name: 'Time period 2' }))
+  fireEvent.change(second.getByLabelText('Start time'), {
+    target: { value: '01:00' },
+  })
+  fireEvent.change(second.getByLabelText('End time'), {
+    target: { value: '03:00' },
+  })
+  expect(first.getByRole('alert')).toHaveTextContent(
+    'This time period overlaps another period.'
+  )
+  expect(second.getByRole('alert')).toHaveTextContent(
+    'This time period overlaps another period.'
+  )
+  await user.type(
+    screen.getByRole('textbox', { name: 'Reason for change' }),
+    'Overnight'
+  )
+  await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+  expect(
+    await screen.findByText('Invalid resource limits configuration')
+  ).toBeVisible()
+  expect(put).not.toHaveBeenCalled()
+})
+it('previews scaled model defaults and shows both ends of an overnight period', async () => {
+  const scheduled = {
+    timezone: 'Asia/Shanghai',
+    periods: [{ start: '07:00', end: '21:00', multiplier: 0.1 }],
+  }
+  vi.mocked(api.get).mockResolvedValueOnce({
+    data: {
+      success: true,
+      version: 'initial',
+      data: {
+        ...config,
+        models: {
+          'model-A': {
+            defaults: {
+              concurrency: { enabled: true, limit: 20 },
+              input_tpm: { enabled: true, limit: 100000 },
+              rpm: { enabled: true, limit: 120 },
+            },
+            users: { '42': { rpm: { enabled: true, limit: 57 } } },
+            schedule: scheduled,
+          },
+          'model-B': {
+            defaults: {
+              concurrency: { enabled: true, limit: 3 },
+              input_tpm: { enabled: true, limit: 0 },
+              rpm: { enabled: false, limit: 0 },
+            },
+            users: {},
+            schedule: scheduled,
+          },
+        },
+      },
+    },
+  })
+  const user = userEvent.setup()
+  mount()
+  await selectScheduleModel(user, 'model-A')
+  const timeline = screen.getByRole('figure', { name: /24-hour timeline/ })
+  expect(
+    within(timeline).getByRole('img', { name: 'Base limits 00:00–07:00' })
+  ).toBeVisible()
+  expect(
+    within(timeline).getByRole('img', { name: 'Time period 1 07:00–21:00' })
+  ).toBeVisible()
+  expect(
+    within(timeline).getByRole('img', { name: 'Base limits 21:00–24:00' })
+  ).toBeVisible()
+  expect(
+    within(screen.getByRole('group', { name: 'Model default limits preview' }))
+      .getAllByRole('definition')
+      .map((element) => element.textContent)
+  ).toEqual(['2', '10,000', '12'])
+
+  fireEvent.change(screen.getByLabelText('Start time'), {
+    target: { value: '22:00' },
+  })
+  fireEvent.change(screen.getByLabelText('End time'), {
+    target: { value: '02:00' },
+  })
+  expect(
+    within(timeline).getByRole('img', { name: 'Time period 1 00:00–02:00' })
+  ).toBeVisible()
+  expect(
+    within(timeline).getByRole('img', { name: 'Base limits 02:00–22:00' })
+  ).toBeVisible()
+  expect(
+    within(timeline).getByRole('img', { name: 'Time period 1 22:00–24:00' })
+  ).toBeVisible()
+  await selectScheduleModel(user, 'model-B')
+  expect(
+    within(screen.getByRole('group', { name: 'Model default limits preview' }))
+      .getAllByRole('definition')
+      .map((element) => element.textContent)
+  ).toEqual(['1', '0', 'Unlimited'])
+})
+
 it('requires a reason and saves explicit zero and unlimited overrides', async () => {
   const put = vi
     .spyOn(api, 'put')
@@ -398,8 +609,17 @@ it('adds an exact model with personal defaults and saves user overrides in the s
     within(modelSection).getByRole('spinbutton', { name: 'Concurrency Limit' }),
     { target: { value: '2' } }
   )
+  await selectScheduleModel(user, 'model-A')
+  await user.click(screen.getByRole('button', { name: 'Add time period' }))
+  await user.click(screen.getByRole('tab', { name: 'Visual' }))
+  await user.click(screen.getByRole('button', { name: 'Edit model model-A' }))
+  const updatedModelSection = screen.getByRole('group', {
+    name: 'Model defaults and user overrides',
+  })
   await user.click(
-    within(modelSection).getByRole('button', { name: 'Add user override' })
+    within(updatedModelSection).getByRole('button', {
+      name: 'Add user override',
+    })
   )
   const drawer = screen.getByRole('dialog')
   await user.click(within(drawer).getByRole('combobox', { name: 'Username' }))
@@ -428,6 +648,10 @@ it('adds an exact model with personal defaults and saves user overrides in the s
         'model-A': {
           defaults: { concurrency: { enabled: true, limit: 2 } },
           users: { '43': { rpm: { enabled: true, limit: 0 } } },
+          schedule: {
+            timezone: 'UTC',
+            periods: [{ start: '07:00', end: '21:00', multiplier: 1 }],
+          },
         },
       },
     },

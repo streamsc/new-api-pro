@@ -43,6 +43,7 @@ type UserResourcesCollector struct{ Context context.Context }
 // Dynamic samples intentionally use an unchecked collector; unavailable usage is omitted.
 func (UserResourcesCollector) Describe(chan<- *prometheus.Desc) {}
 func (collector UserResourcesCollector) Collect(ch chan<- prometheus.Metric) {
+	at := setting.UserResourceTime(collector.Context)
 	UserResourceAdmitted.Collect(ch)
 	UserResourceRejected.Collect(ch)
 	scope := "memory"
@@ -156,7 +157,7 @@ func (collector UserResourcesCollector) Collect(ch chan<- prometheus.Metric) {
 			labelNames := []string{"scope", "user_id"}
 			labels := []string{scope, strconv.Itoa(key.UserID)}
 			if key.Model != "" {
-				limits = modelResourceRow(config, key).Limits
+				limits = modelResourceRow(config, key, at).Limits
 				prefix = "new_api_user_model_"
 				labelNames = append(labelNames, "model")
 				labels = append(labels, key.Model)

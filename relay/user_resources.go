@@ -22,7 +22,13 @@ func AdmitUserResources(c *gin.Context, info *relaycommon.RelayInfo) (func(), *t
 		return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeCountTokenFailed, 400, types.ErrOptionWithSkipRetry())
 	}
 
-	release, rejection, err := service.AcquireUserResources(c.Request.Context(), info.UserId, tokens, service.UserResourceAdmission{Total: config.ForUser(info.UserId), ModelName: info.OriginModelName, Model: config.ForModel(info.UserId, info.OriginModelName)})
+	ctx := c.Request.Context()
+	at := setting.UserResourceTime(ctx)
+	release, rejection, err := service.AcquireUserResources(ctx, info.UserId, tokens, service.UserResourceAdmission{
+		Total:     config.ForUser(info.UserId),
+		ModelName: info.OriginModelName,
+		Model:     config.ForModelAt(info.UserId, info.OriginModelName, at),
+	})
 	if err != nil {
 		return nil, types.NewErrorWithStatusCode(errors.New(i18n.T(c, i18n.MsgResourceStoreUnavailable)), types.ErrorCode("user_resource_store_unavailable"), 503, types.ErrOptionWithSkipRetry())
 	}

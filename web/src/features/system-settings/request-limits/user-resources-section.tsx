@@ -43,6 +43,7 @@ import { requireServerSuccess } from '@/lib/server-error-message'
 import { SettingsForm } from '../components/settings-form-layout'
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
+import { UserResourcesScheduleEditor } from './user-resources-schedule-editor'
 import { userResourcesConfigSchema } from './user-resources-schema'
 import { UserResourcesVisualEditor } from './user-resources-visual-editor'
 
@@ -61,6 +62,7 @@ type FormValues = z.infer<typeof formSchema>
 export function UserResourcesSection() {
   const { t } = useTranslation()
   const [editMode, setEditMode] = useState('visual')
+  const [scheduledModel, setScheduledModel] = useState('')
   const [version, setVersion] = useState('')
   const client = useQueryClient()
   const query = useQuery({
@@ -149,7 +151,7 @@ export function UserResourcesSection() {
                   className='min-w-0'
                   value={editMode}
                   onValueChange={(value) => {
-                    if (value === 'visual') {
+                    if (editMode === 'json' && value !== 'json') {
                       try {
                         userResourcesConfigSchema.parse(JSON.parse(field.value))
                       } catch {
@@ -163,14 +165,32 @@ export function UserResourcesSection() {
                     setEditMode(String(value))
                   }}
                 >
-                  <TabsList className='grid w-full grid-cols-2'>
+                  <TabsList className='grid w-full grid-cols-3 group-data-horizontal/tabs:h-auto'>
                     <TabsTrigger value='visual'>{t('Visual')}</TabsTrigger>
+                    <TabsTrigger
+                      value='schedule'
+                      className='min-w-0 whitespace-normal'
+                    >
+                      {t('Model rate limit schedules')}
+                    </TabsTrigger>
                     <TabsTrigger value='json'>{t('JSON')}</TabsTrigger>
                   </TabsList>
                   <TabsContent value='visual' className='mt-4 min-w-0'>
                     {editMode === 'visual' && field.value && (
                       <UserResourcesVisualEditor
                         config={JSON.parse(field.value)}
+                        onChange={(config) =>
+                          field.onChange(JSON.stringify(config, null, 2))
+                        }
+                      />
+                    )}
+                  </TabsContent>
+                  <TabsContent value='schedule' className='mt-4 min-w-0'>
+                    {editMode === 'schedule' && field.value && (
+                      <UserResourcesScheduleEditor
+                        config={JSON.parse(field.value)}
+                        model={scheduledModel}
+                        onModelChange={setScheduledModel}
                         onChange={(config) =>
                           field.onChange(JSON.stringify(config, null, 2))
                         }

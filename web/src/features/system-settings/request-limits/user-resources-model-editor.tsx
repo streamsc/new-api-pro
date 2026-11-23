@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery } from '@tanstack/react-query'
 import {
   getCoreRowModel,
   getPaginationRowModel,
@@ -29,9 +28,8 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { StaticDataTable, DataTablePagination } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
 import { ComboboxInput } from '@/components/ui/combobox-input'
-import { api } from '@/lib/api'
-import { requireServerSuccess } from '@/lib/server-error-message'
 
+import { useResourceModelSuggestions } from './use-resource-model-suggestions'
 import { ResourceLimitFields } from './user-resources-limit-fields'
 import { UserResourcesOverridesTable } from './user-resources-overrides-table'
 import {
@@ -54,15 +52,7 @@ export function UserResourcesModelEditor(props: {
     () => Object.keys(props.config.models ?? {}).sort(),
     [props.config.models]
   )
-  const suggestions = useQuery({
-    queryKey: ['resource-model-names'],
-    queryFn: async () =>
-      requireServerSuccess(
-        (await api.get<{ success: boolean; data: string[] }>('/api/models'))
-          .data
-      ).data,
-    meta: { errorToast: false },
-  })
+  const suggestions = useResourceModelSuggestions()
   const options = (Array.isArray(suggestions.data) ? suggestions.data : []).map(
     (value) => ({ value, label: value })
   )
@@ -195,7 +185,11 @@ export function UserResourcesModelEditor(props: {
                 ...props.config,
                 models: {
                   ...models,
-                  [selected]: { defaults: next.defaults, users: next.users },
+                  [selected]: {
+                    ...rule,
+                    defaults: next.defaults,
+                    users: next.users,
+                  },
                 },
               })
             }
