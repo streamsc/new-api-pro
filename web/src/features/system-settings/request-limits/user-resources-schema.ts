@@ -175,7 +175,7 @@ export const modelRuleSchema = z
     }
   })
 export type ModelResourceRule = z.infer<typeof modelRuleSchema>
-const exactModelSchema = z
+export const exactModelSchema = z
   .string()
   .min(1)
   .refine(
