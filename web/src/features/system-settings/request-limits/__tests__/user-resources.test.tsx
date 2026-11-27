@@ -59,6 +59,7 @@ it('validates and preserves exact model names that match object prototype proper
 
 let client: QueryClient
 let actions: HTMLDivElement
+let enabledModelsError: Error | undefined
 const config = {
   defaults: {
     concurrency: { enabled: true, limit: 0 },
@@ -68,6 +69,7 @@ const config = {
   users: { '42': { rpm: { enabled: false, limit: 0 } } },
 }
 beforeEach(() => {
+  enabledModelsError = undefined
   client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
@@ -82,6 +84,21 @@ beforeEach(() => {
         data: {
           success: true,
           data: { 1: ['model-A'], 2: ['model-A', 'model-B'], 3: null },
+        },
+      }
+    }
+    if (url === '/api/channel/models_enabled') {
+      if (enabledModelsError) throw enabledModelsError
+      return {
+        data: {
+          success: true,
+          data: [
+            'model-A',
+            'model-B',
+            'gpt-6.2-sol',
+            'team/Sol@stable',
+            'gpt-6.2-sol',
+          ],
         },
       }
     }
@@ -131,11 +148,132 @@ async function selectScheduleModel(
     await screen.findByRole('tab', { name: 'Model rate limit schedules' })
   )
   const model = screen.getByRole('combobox', { name: 'Model' })
+  await user.clear(model)
   await user.type(model, name)
   await screen.findByRole('option', { name })
   await user.keyboard('{ArrowDown}{Enter}')
   expect(model).toHaveValue(name)
 }
+
+it('can save a schedule for a non-preset enabled model without an existing rule', async () => {
+  const put = vi.spyOn(api, 'put').mockResolvedValue({
+    data: { success: true, version: 'next' },
+  })
+  const user = userEvent.setup()
+  mount()
+
+  await selectScheduleModel(user, 'gpt-6.2-sol')
+  await user.click(screen.getByRole('button', { name: 'Add time period' }))
+  await user.type(
+    screen.getByRole('textbox', { name: 'Reason for change' }),
+    'Peak hours'
+  )
+  await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+  await waitFor(() =>
+    expect(put).toHaveBeenCalledWith('/api/option/user_resources', {
+      expected_version: 'initial',
+      reason: 'Peak hours',
+      config: {
+        ...config,
+        models: {
+          'gpt-6.2-sol': {
+            defaults: {
+              concurrency: { enabled: false, limit: 0 },
+              input_tpm: { enabled: false, limit: 0 },
+              rpm: { enabled: false, limit: 0 },
+            },
+            users: {},
+            schedule: {
+              timezone: 'UTC',
+              periods: [{ start: '07:00', end: '21:00', multiplier: 1 }],
+            },
+          },
+        },
+      },
+    })
+  )
+})
+
+it('selects the exact enabled alias when searching by a case-insensitive substring', async () => {
+  const user = userEvent.setup()
+  mount()
+  await user.click(
+    await screen.findByRole('tab', { name: 'Model rate limit schedules' })
+  )
+  const model = screen.getByRole('combobox', { name: 'Model' })
+  await user.type(model, 'sol@st')
+  await user.click(
+    await screen.findByRole('option', { name: 'team/Sol@stable' })
+  )
+
+  expect(model).toHaveValue('team/Sol@stable')
+})
+
+it('can edit an existing schedule for a model absent from the enabled list', async () => {
+  vi.mocked(api.get).mockResolvedValueOnce({
+    data: {
+      success: true,
+      version: 'initial',
+      data: {
+        ...config,
+        models: {
+          'retired-model': {
+            defaults: config.defaults,
+            users: {},
+            schedule: {
+              timezone: 'UTC',
+              periods: [{ start: '09:00', end: '17:00', multiplier: 2 }],
+            },
+          },
+        },
+      },
+    },
+  })
+  const user = userEvent.setup()
+  mount()
+
+  await selectScheduleModel(user, 'retired-model')
+
+  expect(screen.getByLabelText('Start time')).toHaveValue('09:00')
+})
+
+it('can enter an exact model name when enabled model discovery fails', async () => {
+  enabledModelsError = new Error('Unavailable')
+  const user = userEvent.setup()
+  mount()
+  await user.click(
+    await screen.findByRole('tab', { name: 'Model rate limit schedules' })
+  )
+  const model = screen.getByRole('combobox', { name: 'Model' })
+  await user.type(model, 'Future/Sol@stable')
+  await user.keyboard('{Enter}')
+  await user.click(screen.getByRole('button', { name: 'Add time period' }))
+  await user.click(screen.getByRole('tab', { name: 'JSON' }))
+
+  const draft = screen.getByRole<HTMLTextAreaElement>('textbox', {
+    name: 'Defaults and user overrides',
+  })
+  expect(JSON.parse(draft.value).models['Future/Sol@stable']).toHaveProperty(
+    'schedule'
+  )
+})
+
+it('blocks schedule editing for an invalid exact model name', async () => {
+  const user = userEvent.setup()
+  mount()
+  await user.click(
+    await screen.findByRole('tab', { name: 'Model rate limit schedules' })
+  )
+  const model = screen.getByRole('combobox', { name: 'Model' })
+  await user.type(model, ' invalid-model ')
+  await user.tab()
+
+  expect(model).toHaveAttribute('aria-invalid', 'true')
+  expect(
+    screen.queryByRole('button', { name: 'Add time period' })
+  ).not.toBeInTheDocument()
+})
 
 it('keeps a model schedule through JSON edits and a failed save, and can remove the schedule', async () => {
   const put = vi.spyOn(api, 'put').mockRejectedValue(new Error('Save failed'))

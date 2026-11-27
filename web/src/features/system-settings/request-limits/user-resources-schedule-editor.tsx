@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQuery } from '@tanstack/react-query'
 import { nanoid } from 'nanoid'
 import { useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -24,14 +25,16 @@ import { Button } from '@/components/ui/button'
 import { ComboboxInput } from '@/components/ui/combobox-input'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { getEnabledModels } from '@/features/channels/api'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { DraftNumberInput } from '../models/draft-number-input'
-import { useResourceModelSuggestions } from './use-resource-model-suggestions'
 import {
   ModelScheduleLimitPreview,
   ModelScheduleTimeline,
 } from './user-resources-schedule-preview'
 import {
+  exactModelSchema,
   modelRuleSchema,
   resourceScheduleMinute,
   unlimitedResourceLimits,
@@ -54,15 +57,20 @@ export function UserResourcesScheduleEditor(props: {
   const modelId = useId()
   const model = props.model
   const models = props.config.models ?? {}
-  const suggestions = useResourceModelSuggestions()
+  const enabledModels = useQuery({
+    queryKey: ['resource-schedule-enabled-models'],
+    queryFn: async () =>
+      requireServerSuccess(await getEnabledModels()).data ?? [],
+    meta: { errorToast: false },
+  })
   const options = useMemo(() => {
-    const available = Array.isArray(suggestions.data) ? suggestions.data : []
-    return [
-      ...new Set([...Object.keys(props.config.models ?? {}), ...available]),
-    ]
+    const configured = Object.keys(props.config.models ?? {})
+    return [...new Set([...configured, ...(enabledModels.data ?? [])])]
       .sort()
       .map((name) => ({ value: name, label: name }))
-  }, [props.config.models, suggestions.data])
+  }, [props.config.models, enabledModels.data])
+  const validModel = exactModelSchema.safeParse(model).success
+  const invalidModel = model !== '' && !validModel
   const rule = Object.hasOwn(models, model)
     ? models[model]
     : { defaults: unlimitedResourceLimits, users: {} }
@@ -79,10 +87,17 @@ export function UserResourcesScheduleEditor(props: {
           options={options}
           value={model}
           onValueChange={props.onModelChange}
-          placeholder={t('Select model')}
+          placeholder={t('Exact model name')}
+          aria-invalid={invalidModel}
+          allowCustomValue
         />
+        {invalidModel && (
+          <p className='text-destructive text-sm' role='alert'>
+            {t('Enter a new valid exact model name.')}
+          </p>
+        )}
       </div>
-      {model && (
+      {validModel && (
         <ModelScheduleFields
           key={model}
           rule={rule}
